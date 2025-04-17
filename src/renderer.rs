@@ -1,6 +1,6 @@
 use ash::{Device, Entry, Instance, vk};
-use ash::khr::surface;
-use ash::vk::{ApplicationInfo, DeviceCreateInfo, DeviceQueueCreateInfo, InstanceCreateInfo, PhysicalDevice, SurfaceKHR};
+use ash::khr::{surface, swapchain};
+use ash::vk::{ApplicationInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Handle, InstanceCreateInfo, KHR_SWAPCHAIN_NAME, PhysicalDevice, SurfaceKHR};
 use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use winit::window::Window;
 
@@ -8,6 +8,7 @@ pub struct Renderer{
     entry: Entry,
     instance: Instance,
     surface: SurfaceKHR,
+    surface_loader: surface::Instance,
     physical_device: PhysicalDevice,
     logical_device: Device,
     queue_family_indices: QueueFamilyIndices
@@ -61,7 +62,7 @@ impl Renderer{
             if physical_devices.len() == 0{
                 panic!("failed to find GPUs with Vulkan support!");
             }
-            //let physical_device = physical_devices[0];
+            let extensions = [KHR_SWAPCHAIN_NAME];
             let (physical_device,queue_family_index) = physical_devices.iter()
                 .find_map(|&pd| {
                     instance.get_physical_device_queue_family_properties(pd)
@@ -70,8 +71,7 @@ impl Renderer{
                         .find_map(|(index,&queue_family_properties)| {
                             let supports_graphic_and_surface =
                                 queue_family_properties.queue_flags.contains(vk::QueueFlags::GRAPHICS)
-                                    && surface_loader
-                                    .get_physical_device_surface_support(
+                                    && surface_loader.get_physical_device_surface_support(
                                         pd,
                                         index as u32,
                                         surface,
@@ -95,7 +95,15 @@ impl Renderer{
                 .queue_priorities(&priorities)
                 .queue_family_index(queue_family_index);
             let create_infos = [device_queue_create_info];
-            let create_device_info= DeviceCreateInfo::default().queue_create_infos(&create_infos);
+            let device_extension_names_raw = [
+                swapchain::NAME.as_ptr(),
+                #[cfg(any(target_os = "macos", target_os = "ios"))]
+                    ash::khr::portability_subset::NAME.as_ptr(),
+            ];
+            let create_device_info=
+                DeviceCreateInfo::default()
+                    .queue_create_infos(&create_infos)
+                    .enabled_extension_names(&device_extension_names_raw);
             let logical_device =
                 instance.create_device
                 (
@@ -103,15 +111,25 @@ impl Renderer{
                     &create_device_info,
                     None
                 ).expect("Could not create logical device!");
+            //Create Queue
+
 
             Renderer{
                 entry,
                 instance,
                 surface,
+                surface_loader,
                 physical_device,
                 logical_device,
                 queue_family_indices
             }
+
+        }
+    }
+    pub fn cleanup(&self){
+        unsafe {
+            self.surface_loader.destroy_surface(self.surface,None);
+            self.instance.destroy_instance(None);
         }
     }
 }

@@ -25,7 +25,12 @@ impl ApplicationHandler for App{
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => {
+                event_loop.exit();
+                unsafe {
+                    self.renderer.as_ref().unwrap().cleanup()
+                }
+            },
             WindowEvent::RedrawRequested => {
                 self.window.as_ref().unwrap().request_redraw();
             }
