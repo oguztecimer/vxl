@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"
+vk-shader-macros = "0.2.10"
 winit = "0.30.9"
 
 [build]
