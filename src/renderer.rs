@@ -1,6 +1,7 @@
+use std::ffi::CString;
 use ash::{Device, Entry, Instance, vk};
 use ash::khr::{surface, swapchain};
-use ash::vk::{ApplicationInfo, CompositeAlphaFlagsKHR, DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format, Image, ImageAspectFlags, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, InstanceCreateInfo, PhysicalDevice, PresentModeKHR, SharingMode, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR};
+use ash::vk::{ApplicationInfo, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ColorComponentFlags, CompositeAlphaFlagsKHR, CullModeFlags, DeviceCreateInfo, DeviceQueueCreateInfo, DynamicState, Extent2D, Format, FrontFace, GraphicsPipelineCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, InstanceCreateInfo, PhysicalDevice, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PresentModeKHR, PrimitiveTopology, RenderPass, RenderPassCreateInfo, SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SharingMode, SubpassDescription, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR};
 use vk_shader_macros::include_glsl;
 use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use winit::window::Window;
@@ -8,20 +9,27 @@ use winit::window::Window;
 const VERT:&[u32] = include_glsl!("shaders/shader.vert");
 const FRAG:&[u32] = include_glsl!("shaders/shader.frag");
 
+pub struct SwapChain{
+    swap_chain: SwapchainKHR,
+    queue_family_indices: QueueFamilyIndices,
+    images: Vec<Image>,
+    image_views: Vec<ImageView>,
+    loader: swapchain::Device,
+    image_format: Format,
+    extent: Extent2D
+}
+
 pub struct Renderer{
     entry: Entry,
     instance: Instance,
     surface: SurfaceKHR,
     surface_loader: surface::Instance,
     physical_device: PhysicalDevice,
-    queue_family_indices: QueueFamilyIndices,
     logical_device: Device,
-    swap_chain: SwapchainKHR,
-    swap_chain_loader: swapchain::Device,
-    swap_chain_images: Vec<Image>,
-    swap_chain_image_views: Vec<ImageView>,
-    swap_chain_image_format: Format,
-    swap_chain_extent: Extent2D
+    swap_chain: SwapChain,
+    render_pass: RenderPass,
+    layout: PipelineLayout,
+    graphics_pipeline: vk::Pipeline
 }
 
 pub struct QueueFamilyIndices{
@@ -29,21 +37,21 @@ pub struct QueueFamilyIndices{
 }
 
 impl Renderer{
+    pub fn logical_device(&self) -> &Device {&self.logical_device}
+    pub fn swap_chain(&self) -> &SwapChain {&self.swap_chain}
     fn create_instance(window: &Window,entry: &Entry) -> Instance{
-        let application_info =
-            ApplicationInfo::default();
-
+        let application_info = ApplicationInfo::default();
         let create_flags =
             if cfg!(any(target_os = "macos", target_os = "ios")) {
                 vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR
             } else {
                 vk::InstanceCreateFlags::default()
             };
-        let display_handle = window.display_handle().expect("Can't get raw display handle").as_raw();
-        let mut extension_names =
-            ash_window::enumerate_required_extensions(display_handle)
-                .unwrap()
-                .to_vec();
+        let display_handle = window.display_handle()
+            .expect("Can't get raw display handle").as_raw();
+        let mut extension_names = ash_window::enumerate_required_extensions(display_handle)
+            .unwrap()
+            .to_vec();
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         {
             extension_names.push(ash::khr::portability_enumeration::NAME.as_ptr());
@@ -51,12 +59,10 @@ impl Renderer{
             extension_names.push(ash::khr::get_physical_device_properties2::NAME.as_ptr());
         }
 
-        let create_info =
-            InstanceCreateInfo::default()
-                .application_info(&application_info)
-                .flags(create_flags)
-                .enabled_extension_names(&extension_names);
-
+        let create_info = InstanceCreateInfo::default()
+            .application_info(&application_info)
+            .flags(create_flags)
+            .enabled_extension_names(&extension_names);
         unsafe{entry.create_instance(&create_info,None).expect("Instance creation err")}
     }
     fn create_physical_device_and_queue_family_index(
@@ -64,8 +70,7 @@ impl Renderer{
         surface_loader: &surface::Instance,
         surface: &SurfaceKHR
     ) -> (PhysicalDevice,u32){
-        let physical_devices =
-            unsafe{instance.enumerate_physical_devices()}
+        let physical_devices = unsafe{instance.enumerate_physical_devices()}
             .expect("Physical device error");
         if physical_devices.len() == 0{
             panic!("failed to find GPUs with Vulkan support!");
@@ -93,26 +98,23 @@ impl Renderer{
             }).expect("Couldn't find suitable device")
     }
 
+
     fn create_logical_device(
         queue_family_index:u32,
         instance: &Instance,
         physical_device: &PhysicalDevice
     ) -> Device{
-        let priorities = [1.0];
-        let device_queue_create_info =
-            DeviceQueueCreateInfo::default()
-                .queue_priorities(&priorities)
-                .queue_family_index(queue_family_index);
-        let create_infos = [device_queue_create_info];
-        let device_extension_names_raw = [
-            swapchain::NAME.as_ptr(),
+        let device_queue_create_info = DeviceQueueCreateInfo::default()
+            .queue_priorities(&[1.0])
+            .queue_family_index(queue_family_index);
+        let device_extension_names_raw = [swapchain::NAME.as_ptr(),
             #[cfg(any(target_os = "macos", target_os = "ios"))]
                 ash::khr::portability_subset::NAME.as_ptr(),
         ];
-        let create_device_info=
-            DeviceCreateInfo::default()
-                .queue_create_infos(&create_infos)
-                .enabled_extension_names(&device_extension_names_raw);
+        let device_queue_create_info_array = [device_queue_create_info];
+        let create_device_info= DeviceCreateInfo::default()
+            .queue_create_infos(&device_queue_create_info_array)
+            .enabled_extension_names(&device_extension_names_raw);
         unsafe{instance.create_device
         (
             *physical_device,
@@ -121,81 +123,274 @@ impl Renderer{
         )}.expect("Could not create logical device!")
     }
 
-    pub fn new(window: &Window) -> Renderer{
-        let entry = Entry::linked();
-        let instance = Self::create_instance(window,&entry);
+    fn create_surface(window:&Window, entry: &Entry, instance:&Instance) -> SurfaceKHR{
         let display_handle = window
             .display_handle()
             .expect("Can't get raw display handle").as_raw();
         let window_handle = window.window_handle()
             .expect("Can't get window handle")
             .as_raw();
-        let surface = unsafe{ash_window::create_surface(
+        unsafe{ash_window::create_surface(
             &entry,
             &instance,
             display_handle,
             window_handle,
             None
-        )}.expect("Could not create surface");
+        )}.expect("Could not create surface")
+    }
+
+    fn create_shader_module(logical_device: &Device,code:&[u32]) -> ShaderModule{
+        let shader_module_create_info = ShaderModuleCreateInfo::default()
+            .code(code);
+        unsafe{logical_device.create_shader_module(&shader_module_create_info,None)}
+            .expect("Could not create shader module")
+    }
+
+    pub fn new(window: &Window) -> Renderer{
+        let entry = Entry::linked();
+        let instance = Self::create_instance(window,&entry);
+        let surface = Self::create_surface(window,&entry,&instance);
         let surface_loader = surface::Instance::new(&entry,&instance);
         let (physical_device,queue_family_index) =
             Self::create_physical_device_and_queue_family_index(&instance,&surface_loader,&surface);
-
-        let queue_family_indices = QueueFamilyIndices{
-            graphics : queue_family_index
-        };
         let logical_device =
             Self::create_logical_device(queue_family_index,&instance,&physical_device);
 
+        let swap_chain = SwapChain::new(
+            queue_family_index,
+            &instance,
+            &surface_loader,
+            &physical_device,
+            &logical_device,
+            &surface
+        );
 
+        let vert_module = Self::create_shader_module(&logical_device, VERT);
+        let frag_module = Self::create_shader_module(&logical_device, FRAG);
+
+        let name = CString::new("main").expect("Could not convert to CStr");
+        let vertex_info = PipelineShaderStageCreateInfo::default()
+            .stage(ShaderStageFlags::VERTEX)
+            .module(vert_module).name(&name);
+        let frag_info = PipelineShaderStageCreateInfo::default()
+            .stage(ShaderStageFlags::FRAGMENT)
+            .module(frag_module).name(&name);
+        let stages = [vertex_info,frag_info];
+
+        let dynamic_states = [DynamicState::VIEWPORT,DynamicState::SCISSOR];
+        let dynamic_state_create_info =
+            PipelineDynamicStateCreateInfo::default()
+                .dynamic_states(&dynamic_states);
+
+        let vertex_input_create_info =
+            PipelineVertexInputStateCreateInfo::default();
+        let input_assembly_state_create_info =
+            PipelineInputAssemblyStateCreateInfo::default()
+                .primitive_restart_enable(false)
+                .topology(PrimitiveTopology::TRIANGLE_LIST);
+
+        // let viewport = Viewport::default()
+        //     .x(0.0)
+        //     .y(0.0)
+        //     .min_depth(0.0)
+        //     .max_depth(0.0)
+        //     .width(extent.width as f32)
+        //     .height(extent.height as f32);
+        //
+        // let scissor = Rect2D::default()
+        //     .extent(extent)
+        //     .offset(Offset2D{x:0,y:0});
+        //
+        // let viewports = [viewport];
+        // let scissors = [scissor];
+
+        let pipeline_viewport_state_create_info =
+            PipelineViewportStateCreateInfo::default()
+                .viewport_count(1)
+                .scissor_count(1);
+        let pipeline_rasterization_state_create_info =
+            PipelineRasterizationStateCreateInfo::default()
+                .depth_clamp_enable(false)
+                .rasterizer_discard_enable(false)
+                .polygon_mode(PolygonMode::FILL)
+                .line_width(1.0)
+                .cull_mode(CullModeFlags::BACK)
+                .front_face(FrontFace::CLOCKWISE)
+                .depth_bias_enable(false);
+
+        let pipeline_multisample_state_create_info =
+            PipelineMultisampleStateCreateInfo::default()
+                .sample_shading_enable(false)
+                .rasterization_samples(SampleCountFlags::TYPE_1);
+
+        let pipeline_stencil_state_create_info =
+            PipelineDepthStencilStateCreateInfo::default();
+
+        let pipeline_color_blend_attachment_state =
+            PipelineColorBlendAttachmentState::default()
+                .color_write_mask(ColorComponentFlags::RGBA)
+                .blend_enable(false);
+
+        let attachments = [pipeline_color_blend_attachment_state];
+        let pipeline_color_blend_state_create_info =
+            PipelineColorBlendStateCreateInfo::default()
+                .logic_op_enable(false)
+                .attachments(&attachments);
+
+        let pipeline_layout_create_info =
+            PipelineLayoutCreateInfo::default();
+
+        let layout = unsafe{logical_device
+            .create_pipeline_layout(&pipeline_layout_create_info,None)}
+            .expect("Could not create pipeline layout");
+
+        //Render pass
+        let color_attachment = AttachmentDescription::default()
+            .samples(SampleCountFlags::TYPE_1)
+            .format(swap_chain.image_format)
+            .load_op(AttachmentLoadOp::CLEAR)
+            .store_op(AttachmentStoreOp::STORE)
+            .stencil_load_op(AttachmentLoadOp::DONT_CARE)
+            .stencil_store_op(AttachmentStoreOp::DONT_CARE)
+            .initial_layout(ImageLayout::UNDEFINED)
+            .final_layout(ImageLayout::PRESENT_SRC_KHR);
+
+        let color_attachment_ref = AttachmentReference::default()
+            .attachment(0)
+            .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
+
+        let color_attachments = [color_attachment];
+        let color_attachment_refs = [color_attachment_ref];
+
+        let sub_pass_description = SubpassDescription::default()
+            .pipeline_bind_point(PipelineBindPoint::GRAPHICS)
+            .color_attachments(&color_attachment_refs);
+        let sub_pass_descriptions = [sub_pass_description];
+
+        let render_pass_create_info = RenderPassCreateInfo::default()
+            .attachments(&color_attachments)
+            .subpasses(&sub_pass_descriptions);
+
+        let render_pass =
+            unsafe{logical_device.create_render_pass(&render_pass_create_info,None)
+                .expect("Could not create render pass")};
+
+        //Pipeline
+
+        let graphics_pipeline_create_info = GraphicsPipelineCreateInfo::default()
+            .stages(&stages)
+            .vertex_input_state(&vertex_input_create_info)
+            .input_assembly_state(&input_assembly_state_create_info)
+            .viewport_state(&pipeline_viewport_state_create_info)
+            .rasterization_state(&pipeline_rasterization_state_create_info)
+            .multisample_state(&pipeline_multisample_state_create_info)
+            .depth_stencil_state(&pipeline_stencil_state_create_info)
+            .color_blend_state(&pipeline_color_blend_state_create_info)
+            .dynamic_state(&dynamic_state_create_info)
+            .layout(layout)
+            .render_pass(render_pass)
+            .subpass(0)
+            ;
+        let graphics_pipeline_create_infos = [graphics_pipeline_create_info];
+        let graphics_pipeline =
+            unsafe{logical_device.create_graphics_pipelines(
+                PipelineCache::null(),
+                &graphics_pipeline_create_infos,
+                None
+            )
+                .expect("Could not create graphics pipeline")}[0];
+
+        unsafe{logical_device.destroy_shader_module(vert_module,None)};
+        unsafe{logical_device.destroy_shader_module(frag_module,None)};
+
+        //Frame buffers
+
+
+
+
+        Renderer{
+            entry,
+            instance,
+            surface,
+            surface_loader,
+            physical_device,
+            logical_device,
+            swap_chain,
+            layout,
+            render_pass,
+            graphics_pipeline,
+        }
+    }
+
+    pub fn cleanup(&self){
+        self.swap_chain.cleanup(&self.logical_device);
+        unsafe{self.surface_loader.destroy_surface(self.surface,None)};
+        unsafe{self.instance.destroy_instance(None)};
+        unsafe{self.logical_device.destroy_pipeline(self.graphics_pipeline,None)};
+        unsafe{self.logical_device.destroy_pipeline_layout(self.layout,None)};
+        unsafe{self.logical_device.destroy_render_pass(self.render_pass,None)};
+    }
+}
+
+impl SwapChain{
+    pub fn image_format(&self) -> &Format {&self.image_format}
+    pub fn new(
+        queue_family_index: u32,
+        instance: &Instance,
+        surface_loader: &surface::Instance,
+        physical_device: &PhysicalDevice,
+        logical_device: &Device,
+        surface: &SurfaceKHR
+    ) -> SwapChain{
+        let queue_family_indices = QueueFamilyIndices{
+            graphics : queue_family_index
+        };
+        let loader = swapchain::Device::new(&instance,&logical_device);
         let surface_present_modes = unsafe{surface_loader
-            .get_physical_device_surface_present_modes(physical_device,surface)}
+            .get_physical_device_surface_present_modes(*physical_device,*surface)}
             .expect("Could not get surface present modes.");
         let surface_capabilities = unsafe{surface_loader
-            .get_physical_device_surface_capabilities(physical_device,surface)}
+            .get_physical_device_surface_capabilities(*physical_device,*surface)}
             .expect("Could not get surface capabilities");
         let surface_formats = unsafe{surface_loader
-            .get_physical_device_surface_formats(physical_device,surface)}
+            .get_physical_device_surface_formats(*physical_device,*surface)}
             .expect("Could not get surface formats");
         let surface_present_mode = surface_present_modes
             .iter()
             .cloned()
             .find(|&mode| mode == PresentModeKHR::MAILBOX)
             .unwrap_or(PresentModeKHR::FIFO);
-
         let min_image_count =
             (surface_capabilities.min_image_count+1).min(surface_capabilities.max_image_count);
-
-        let swap_chain_image_format = surface_formats[0].format;
+        let image_format = surface_formats[0].format;
         let swap_chain_color_space = surface_formats[0].color_space;
-        let swap_chain_extent = surface_capabilities.current_extent;
-
-        let swap_chain_loader = swapchain::Device::new(&instance,&logical_device);
-        let indices = [queue_family_indices.graphics];
+        let extent = surface_capabilities.current_extent;
+        let queue_family_indices_array = [queue_family_indices.graphics];
         let create_info =
             SwapchainCreateInfoKHR::default()
-                .surface(surface)
+                .surface(*surface)
                 .min_image_count(min_image_count)
-                .image_format(swap_chain_image_format)
+                .image_format(image_format)
                 .image_color_space(swap_chain_color_space)
-                .image_extent(swap_chain_extent)
+                .image_extent(extent)
                 .image_array_layers(1)
                 .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
                 .image_sharing_mode(SharingMode::EXCLUSIVE)
-                .queue_family_indices(&indices)
+                .queue_family_indices(&queue_family_indices_array)
                 .pre_transform(surface_capabilities.current_transform)
                 .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
                 .present_mode(surface_present_mode)
             ;
         let swap_chain =
-            unsafe{swap_chain_loader.create_swapchain(&create_info,None)}
+            unsafe{loader.create_swapchain(&create_info,None)}
                 .expect("Could not create swap chain!");
 
-        let swap_chain_images =
-            unsafe{swap_chain_loader.get_swapchain_images(swap_chain)}
-            .expect("Could not load swap chain images");
-        let swap_chain_image_views =
-            swap_chain_images
+
+        let images =
+            unsafe{loader.get_swapchain_images(swap_chain)}
+                .expect("Could not load swap chain images");
+        let image_views =
+            images
                 .iter()
                 .map(|&img|{
                     let subresource_range =
@@ -210,36 +405,26 @@ impl Renderer{
                             .subresource_range(subresource_range)
                             .image(img)
                             .view_type(ImageViewType::TYPE_2D)
-                            .format(swap_chain_image_format);
+                            .format(image_format);
                     unsafe{logical_device.create_image_view(&info,None)}
                         .unwrap()
                 }).collect();
 
-        Renderer{
-            entry,
-            instance,
-            surface,
-            surface_loader,
-            physical_device,
+        SwapChain{
             queue_family_indices,
-            logical_device,
             swap_chain,
-            swap_chain_loader,
-            swap_chain_images,
-            swap_chain_image_views,
-            swap_chain_image_format,
-            swap_chain_extent
+            image_views,
+            loader,
+            images,
+            image_format,
+            extent,
         }
     }
 
-    pub fn cleanup(&self){
-        unsafe {
-            for view in &self.swap_chain_image_views{
-                self.logical_device.destroy_image_view(*view,None);
-            }
-            self.swap_chain_loader.destroy_swapchain(self.swap_chain,None);
-            self.surface_loader.destroy_surface(self.surface,None);
-            self.instance.destroy_instance(None);
+    pub fn cleanup(&self,logical_device: &Device){
+        for view in &self.image_views{
+            unsafe{logical_device.destroy_image_view(*view,None)};
         }
+        unsafe{self.loader.destroy_swapchain(self.swap_chain,None)};
     }
 }

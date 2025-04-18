@@ -7,7 +7,7 @@ use crate::renderer::Renderer;
 #[derive(Default)]
 pub struct App{
     pub window: Option<Window>,
-    pub renderer: Option<Renderer>
+    pub renderer: Option<Renderer>,
 }
 
 impl ApplicationHandler for App{
@@ -20,7 +20,6 @@ impl ApplicationHandler for App{
         ).unwrap();
         self.renderer = Some(Renderer::new(&window));
         self.window = Some(window);
-
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
