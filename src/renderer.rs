@@ -427,6 +427,9 @@ impl Renderer{
         unsafe{self.logical_device.destroy_pipeline(self.graphics_pipeline,None)};
         unsafe{self.logical_device.destroy_pipeline_layout(self.layout,None)};
         unsafe{self.logical_device.destroy_render_pass(self.render_pass,None)};
+        for fb in &self.frame_buffers {
+            unsafe{self.logical_device.destroy_framebuffer(*fb, None)};
+        }
     }
 }
 

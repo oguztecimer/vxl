@@ -1,6 +1,5 @@
-use std::ops::Deref;
 use ash::Device;
-use ash::vk::{AcquireNextImageInfoKHR, CommandBufferResetFlags, Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use ash::vk::{CommandBufferResetFlags, Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop};
@@ -46,8 +45,6 @@ impl ApplicationHandler for App{
 impl App{
     fn renderer(&self) -> &Renderer{self.renderer.as_ref().unwrap()}
     fn draw_frame(&self,logical_device:&Device){
-        println!("Frame drawn");
-        self.window.as_ref().unwrap().request_redraw();
         let sync_objects = self.sync_objects.as_ref().unwrap();
         let fences = [sync_objects.in_flight_fence];
         unsafe{logical_device.wait_for_fences(&fences,true,u64::MAX)}
@@ -91,5 +88,6 @@ impl App{
             self.renderer().swap_chain().loader.queue_present(queue, &present_info)
                 .expect("Could not present queue");
         }
+        //self.window.as_ref().unwrap().request_redraw();
     }
 }
