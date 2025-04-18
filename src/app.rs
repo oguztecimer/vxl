@@ -20,6 +20,7 @@ impl ApplicationHandler for App{
         ).unwrap();
         self.renderer = Some(Renderer::new(&window));
         self.window = Some(window);
+        self.window.as_ref().unwrap().request_redraw();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
@@ -29,9 +30,16 @@ impl ApplicationHandler for App{
                 self.renderer.as_ref().unwrap().cleanup();
             },
             WindowEvent::RedrawRequested => {
+                Self::draw_frame();
                 self.window.as_ref().unwrap().request_redraw();
-            }
+            },
             _=>()
         }
+    }
+}
+
+impl App(){
+    fn draw_frame(){
+
     }
 }

@@ -1,7 +1,7 @@
 use std::ffi::CString;
 use ash::{Device, Entry, Instance, vk};
 use ash::khr::{surface, swapchain};
-use ash::vk::{ApplicationInfo, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ColorComponentFlags, CompositeAlphaFlagsKHR, CullModeFlags, DeviceCreateInfo, DeviceQueueCreateInfo, DynamicState, Extent2D, Format, FrontFace, GraphicsPipelineCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, InstanceCreateInfo, PhysicalDevice, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PresentModeKHR, PrimitiveTopology, RenderPass, RenderPassCreateInfo, SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SharingMode, SubpassDescription, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR};
+use ash::vk::{ApplicationInfo, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ClearColorValue, ClearValue, ColorComponentFlags, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandBufferUsageFlags, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, CompositeAlphaFlagsKHR, CullModeFlags, DeviceCreateInfo, DeviceQueueCreateInfo, DynamicState, Extent2D, Format, Framebuffer, FramebufferCreateInfo, FrontFace, GraphicsPipelineCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, InstanceCreateInfo, Offset2D, PhysicalDevice, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PresentModeKHR, PrimitiveTopology, Rect2D, RenderPass, RenderPassBeginInfo, RenderPassCreateInfo, SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SharingMode, SubpassContents, SubpassDescription, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR, Viewport};
 use vk_shader_macros::include_glsl;
 use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use winit::window::Window;
@@ -29,7 +29,10 @@ pub struct Renderer{
     swap_chain: SwapChain,
     render_pass: RenderPass,
     layout: PipelineLayout,
-    graphics_pipeline: vk::Pipeline
+    graphics_pipeline: vk::Pipeline,
+    frame_buffers: Vec<Framebuffer>,
+    command_pool: CommandPool,
+    command_buffer: CommandBuffer
 }
 
 pub struct QueueFamilyIndices{
@@ -146,6 +149,50 @@ impl Renderer{
             .expect("Could not create shader module")
     }
 
+    fn create_command_pool(logical_device: &Device,graphics_queue_family_index:u32) -> CommandPool{
+        let command_pool_create_info = CommandPoolCreateInfo::default()
+            .queue_family_index(graphics_queue_family_index)
+            .flags(CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
+        unsafe{logical_device.create_command_pool(&command_pool_create_info,None)}
+            .expect("Could not create command pool")
+    }
+
+    pub fn record_command_buffer(&self, image_index:usize){
+        let command_buffer_begin_info = CommandBufferBeginInfo::default();
+        unsafe{self.logical_device.begin_command_buffer(self.command_buffer,&command_buffer_begin_info)}
+            .expect("Could not begin recording the command buffer");
+
+        let clear_values= [ClearValue{color: ClearColorValue::default()}];
+        let render_pass_begin_info = RenderPassBeginInfo::default()
+            .render_pass(self.render_pass)
+            .clear_values(&clear_values)
+            .framebuffer(self.frame_buffers[image_index])
+            .render_area(Rect2D{offset:Offset2D{x:0,y:0},extent:self.swap_chain.extent});
+
+        unsafe{self.logical_device.cmd_begin_render_pass(self.command_buffer,&render_pass_begin_info,SubpassContents::INLINE)};
+        unsafe{self.logical_device.cmd_bind_pipeline(self.command_buffer,PipelineBindPoint::GRAPHICS,self.graphics_pipeline)};
+
+        let viewport = Viewport::default()
+            .x(0.0)
+            .y(0.0)
+            .min_depth(0.0)
+            .max_depth(0.0)
+            .width(self.swap_chain.extent.width as f32)
+            .height(self.swap_chain.extent.height as f32);
+
+        let scissor = Rect2D::default()
+            .extent(self.swap_chain.extent)
+            .offset(Offset2D{x:0,y:0});
+
+        let viewports = [viewport];
+        let scissors = [scissor];
+
+        unsafe{self.logical_device.cmd_set_viewport(self.command_buffer,0,&viewports)}
+        unsafe{self.logical_device.cmd_set_scissor(self.command_buffer,0,&scissors)}
+        unsafe{self.logical_device.cmd_draw(self.command_buffer,3,1,0,0)}
+        unsafe{self.logical_device.cmd_end_render_pass(self.command_buffer)}
+    }
+
     pub fn new(window: &Window) -> Renderer{
         let entry = Entry::linked();
         let instance = Self::create_instance(window,&entry);
@@ -188,22 +235,6 @@ impl Renderer{
             PipelineInputAssemblyStateCreateInfo::default()
                 .primitive_restart_enable(false)
                 .topology(PrimitiveTopology::TRIANGLE_LIST);
-
-        // let viewport = Viewport::default()
-        //     .x(0.0)
-        //     .y(0.0)
-        //     .min_depth(0.0)
-        //     .max_depth(0.0)
-        //     .width(extent.width as f32)
-        //     .height(extent.height as f32);
-        //
-        // let scissor = Rect2D::default()
-        //     .extent(extent)
-        //     .offset(Offset2D{x:0,y:0});
-        //
-        // let viewports = [viewport];
-        // let scissors = [scissor];
-
         let pipeline_viewport_state_create_info =
             PipelineViewportStateCreateInfo::default()
                 .viewport_count(1)
@@ -303,7 +334,31 @@ impl Renderer{
         unsafe{logical_device.destroy_shader_module(vert_module,None)};
         unsafe{logical_device.destroy_shader_module(frag_module,None)};
 
-        //Frame buffers
+        //
+
+        let frame_buffers : Vec<Framebuffer> =
+            swap_chain.image_views.iter().map(|&image_view|{
+                let image_view_array = [image_view];
+                let frame_buffer_create_info = FramebufferCreateInfo::default()
+                    .render_pass(render_pass)
+                   .attachments(&image_view_array)
+                   .width(swap_chain.extent.width)
+                   .height(swap_chain.extent.height)
+                   .layers(1);
+                unsafe{logical_device.create_framebuffer(&frame_buffer_create_info,None)}
+                    .expect("Could not create frame buffer")
+            }).collect();
+
+        let command_pool =
+            Self::create_command_pool(&logical_device,swap_chain.queue_family_indices.graphics);
+
+        let command_buffer_allocate_info =
+            CommandBufferAllocateInfo::default()
+                .command_pool(command_pool)
+                .command_buffer_count(1)
+                .level(CommandBufferLevel::PRIMARY);
+        let command_buffer = unsafe{logical_device.allocate_command_buffers(&command_buffer_allocate_info)}
+            .expect("Could not allocate command buffers")[0];
 
 
 
@@ -319,11 +374,15 @@ impl Renderer{
             layout,
             render_pass,
             graphics_pipeline,
+            frame_buffers,
+            command_pool,
+            command_buffer
         }
     }
 
     pub fn cleanup(&self){
         self.swap_chain.cleanup(&self.logical_device);
+        unsafe{self.logical_device.destroy_command_pool(self.command_pool,None)};
         unsafe{self.surface_loader.destroy_surface(self.surface,None)};
         unsafe{self.instance.destroy_instance(None)};
         unsafe{self.logical_device.destroy_pipeline(self.graphics_pipeline,None)};
