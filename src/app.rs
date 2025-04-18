@@ -30,16 +30,16 @@ impl ApplicationHandler for App{
                 self.renderer.as_ref().unwrap().cleanup();
             },
             WindowEvent::RedrawRequested => {
-                Self::draw_frame();
-                self.window.as_ref().unwrap().request_redraw();
+                self.draw_frame();
             },
             _=>()
         }
     }
 }
 
-impl App(){
-    fn draw_frame(){
-
+impl App{
+    fn draw_frame(&self){
+        println!("Frame drawn");
+        self.window.as_ref().unwrap().request_redraw();
     }
 }
