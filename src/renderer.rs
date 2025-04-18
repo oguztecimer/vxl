@@ -1,7 +1,7 @@
 use std::ffi::CString;
 use ash::{Device, Entry, Instance, vk};
 use ash::khr::{surface, swapchain};
-use ash::vk::{ApplicationInfo, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ClearColorValue, ClearValue, ColorComponentFlags, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandBufferUsageFlags, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, CompositeAlphaFlagsKHR, CullModeFlags, DeviceCreateInfo, DeviceQueueCreateInfo, DynamicState, Extent2D, Format, Framebuffer, FramebufferCreateInfo, FrontFace, GraphicsPipelineCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, InstanceCreateInfo, Offset2D, PhysicalDevice, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PresentModeKHR, PrimitiveTopology, Rect2D, RenderPass, RenderPassBeginInfo, RenderPassCreateInfo, SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SharingMode, SubpassContents, SubpassDescription, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR, Viewport};
+use ash::vk::{AccessFlags, ApplicationInfo, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ClearColorValue, ClearValue, ColorComponentFlags, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandBufferUsageFlags, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, CompositeAlphaFlagsKHR, CullModeFlags, DeviceCreateInfo, DeviceQueueCreateInfo, DynamicState, Extent2D, Fence, FenceCreateFlags, FenceCreateInfo, Format, Framebuffer, FramebufferCreateInfo, FrontFace, GraphicsPipelineCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, InstanceCreateInfo, Offset2D, PFN_vkCreateSemaphore, PhysicalDevice, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineStageFlags, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PresentModeKHR, PrimitiveTopology, Rect2D, RenderPass, RenderPassBeginInfo, RenderPassCreateInfo, SampleCountFlags, Semaphore, SemaphoreCreateFlags, SemaphoreCreateInfo, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SharingMode, SUBPASS_EXTERNAL, SubpassContents, SubpassDependency, SubpassDescription, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR, Viewport};
 use vk_shader_macros::include_glsl;
 use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use winit::window::Window;
@@ -10,11 +10,11 @@ const VERT:&[u32] = include_glsl!("shaders/shader.vert");
 const FRAG:&[u32] = include_glsl!("shaders/shader.frag");
 
 pub struct SwapChain{
-    swap_chain: SwapchainKHR,
-    queue_family_indices: QueueFamilyIndices,
+    pub swap_chain: SwapchainKHR,
+    pub queue_family_indices: QueueFamilyIndices,
     images: Vec<Image>,
     image_views: Vec<ImageView>,
-    loader: swapchain::Device,
+    pub loader: swapchain::Device,
     image_format: Format,
     extent: Extent2D
 }
@@ -32,11 +32,42 @@ pub struct Renderer{
     graphics_pipeline: vk::Pipeline,
     frame_buffers: Vec<Framebuffer>,
     command_pool: CommandPool,
-    command_buffer: CommandBuffer
+    pub command_buffer: CommandBuffer
+}
+
+pub struct SyncObjects{
+    pub image_available_semaphore:Semaphore,
+    pub render_finished_semaphore:Semaphore,
+    pub in_flight_fence:Fence
 }
 
 pub struct QueueFamilyIndices{
-    graphics : u32,
+    pub graphics : u32,
+}
+
+impl SyncObjects {
+    pub fn new(logical_device: &Device) -> SyncObjects {
+        let semaphore_create_info = SemaphoreCreateInfo::default();
+        let fence_create_info = FenceCreateInfo::default()
+            .flags(FenceCreateFlags::SIGNALED);
+        let image_available_semaphore = unsafe { logical_device.create_semaphore(&semaphore_create_info, None) }
+            .expect("Could not create semaphore");
+        let render_finished_semaphore = unsafe { logical_device.create_semaphore(&semaphore_create_info, None) }
+            .expect("Could not create semaphore");
+        let in_flight_fence = unsafe { logical_device.create_fence(&fence_create_info, None) }
+            .expect("Could not create fence");
+        SyncObjects {
+            image_available_semaphore,
+            render_finished_semaphore,
+            in_flight_fence
+        }
+    }
+
+    pub fn cleanup(&self,logical_device: &Device) {
+        unsafe{logical_device.destroy_semaphore(self.image_available_semaphore,None)};
+        unsafe{logical_device.destroy_semaphore(self.render_finished_semaphore,None)};
+        unsafe{logical_device.destroy_fence(self.in_flight_fence,None)};
+    }
 }
 
 impl Renderer{
@@ -193,6 +224,8 @@ impl Renderer{
         unsafe{self.logical_device.cmd_end_render_pass(self.command_buffer)}
     }
 
+    //create_command_buffer
+
     pub fn new(window: &Window) -> Renderer{
         let entry = Entry::linked();
         let instance = Self::create_instance(window,&entry);
@@ -298,9 +331,18 @@ impl Renderer{
             .color_attachments(&color_attachment_refs);
         let sub_pass_descriptions = [sub_pass_description];
 
+        let dependencies = [SubpassDependency::default()
+            .src_subpass(SUBPASS_EXTERNAL)
+            .dst_subpass(0)
+            .src_stage_mask(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+            .src_access_mask(AccessFlags::NONE)
+            .dst_stage_mask(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+            .dst_access_mask(AccessFlags::COLOR_ATTACHMENT_WRITE)];
+
         let render_pass_create_info = RenderPassCreateInfo::default()
             .attachments(&color_attachments)
-            .subpasses(&sub_pass_descriptions);
+            .subpasses(&sub_pass_descriptions)
+            .dependencies(&dependencies);
 
         let render_pass =
             unsafe{logical_device.create_render_pass(&render_pass_create_info,None)
@@ -359,9 +401,6 @@ impl Renderer{
                 .level(CommandBufferLevel::PRIMARY);
         let command_buffer = unsafe{logical_device.allocate_command_buffers(&command_buffer_allocate_info)}
             .expect("Could not allocate command buffers")[0];
-
-
-
 
         Renderer{
             entry,
