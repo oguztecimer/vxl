@@ -1,7 +1,7 @@
 use std::ffi::CString;
 use ash::{Device, Entry, Instance, vk};
 use ash::khr::{surface, swapchain};
-use ash::vk::{AccessFlags, ApplicationInfo, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ClearColorValue, ClearValue, ColorComponentFlags, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandBufferUsageFlags, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, CompositeAlphaFlagsKHR, CullModeFlags, DeviceCreateInfo, DeviceQueueCreateInfo, DynamicState, Extent2D, Fence, FenceCreateFlags, FenceCreateInfo, Format, Framebuffer, FramebufferCreateInfo, FrontFace, GraphicsPipelineCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, InstanceCreateInfo, Offset2D, PhysicalDevice, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineStageFlags, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PresentModeKHR, PrimitiveTopology, Rect2D, RenderPass, RenderPassBeginInfo, RenderPassCreateInfo, SampleCountFlags, Semaphore, SemaphoreCreateFlags, SemaphoreCreateInfo, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SharingMode, SUBPASS_EXTERNAL, SubpassContents, SubpassDependency, SubpassDescription, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR, Viewport, API_VERSION_1_3};
+use ash::vk::{AccessFlags, ApplicationInfo, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ClearColorValue, ClearValue, ColorComponentFlags, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, CompositeAlphaFlagsKHR, CullModeFlags, DeviceCreateInfo, DeviceQueueCreateInfo, DynamicState, Extent2D, Fence, FenceCreateInfo, Format, Framebuffer, FramebufferCreateInfo, FrontFace, GraphicsPipelineCreateInfo, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, InstanceCreateInfo, Offset2D, PhysicalDevice, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineStageFlags, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PresentModeKHR, PrimitiveTopology, Rect2D, RenderPass, RenderPassBeginInfo, RenderPassCreateInfo, SampleCountFlags, Semaphore, SemaphoreCreateInfo, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SharingMode, SUBPASS_EXTERNAL, SubpassContents, SubpassDependency, SubpassDescription, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR, Viewport, API_VERSION_1_3};
 use vk_shader_macros::include_glsl;
 use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use winit::window::Window;
@@ -12,7 +12,6 @@ const FRAG:&[u32] = include_glsl!("shaders/shader.frag");
 pub struct SwapChain{
     pub swap_chain: SwapchainKHR,
     pub queue_family_indices: QueueFamilyIndices,
-    images: Vec<Image>,
     image_views: Vec<ImageView>,
     pub loader: swapchain::Device,
     image_format: Format,
@@ -20,11 +19,9 @@ pub struct SwapChain{
 }
 
 pub struct Renderer{
-    entry: Entry,
     instance: Instance,
     surface: SurfaceKHR,
     surface_loader: surface::Instance,
-    physical_device: PhysicalDevice,
     logical_device: Device,
     swap_chain: SwapChain,
     render_pass: RenderPass,
@@ -193,7 +190,7 @@ impl Renderer{
         unsafe{self.logical_device.begin_command_buffer(self.command_buffer,&command_buffer_begin_info)}
             .expect("Could not begin recording the command buffer");
 
-        let clear_values= [ClearValue{color: ClearColorValue{uint32:[0,0,0,0]}}];
+        let clear_values= [ClearValue{color: ClearColorValue{float32:[0.1,0.1,0.1,1.0]}}];
         let render_pass_begin_info = RenderPassBeginInfo::default()
             .render_pass(self.render_pass)
             .clear_values(&clear_values)
@@ -405,11 +402,9 @@ impl Renderer{
             .expect("Could not allocate command buffers")[0];
 
         Renderer{
-            entry,
             instance,
             surface,
             surface_loader,
-            physical_device,
             logical_device,
             swap_chain,
             layout,
@@ -519,7 +514,6 @@ impl SwapChain{
             swap_chain,
             image_views,
             loader,
-            images,
             image_format,
             extent,
         }

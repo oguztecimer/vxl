@@ -8,9 +8,3 @@ ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"
 vk-shader-macros = "0.2.10"
 winit = "0.30.9"
-
-[build]
-rustflags = ["-C", "link-arg=-Wl,-rpath,/Users/oguztecimer/VulkanSDK/1.4.309.0/macOS/lib"]
-
-[run]
-rustflags = ["-C", "link-arg=-Wl,-rpath,/Users/oguztecimer/VulkanSDK/1.4.309.0/macOS/lib"]

@@ -1,8 +1,8 @@
 use ash::Device;
-use ash::vk::{CommandBufferResetFlags, Fence, Handle, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use ash::vk::{CommandBufferResetFlags, Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 use crate::renderer::{Renderer, SyncObjects};
 
