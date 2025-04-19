@@ -26,7 +26,8 @@ pub struct Renderer{
     graphics_pipeline: vk::Pipeline,
     frame_buffers: Vec<Framebuffer>,
     command_pool: CommandPool,
-    pub command_buffer: CommandBuffer
+    pub command_buffer: CommandBuffer,
+    pub sync_objects: SyncObjects
 }
 
 pub struct SyncObjects{
@@ -76,7 +77,7 @@ impl Renderer{
             };
         let display_handle = window.display_handle()
             .expect("Can't get raw display handle").as_raw();
-        let mut extension_names = ash_window::enumerate_required_extensions(display_handle)
+        let extension_names = ash_window::enumerate_required_extensions(display_handle)
             .unwrap()
             .to_vec();
         #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -489,6 +490,7 @@ impl Renderer{
         let command_buffer = unsafe{logical_device.allocate_command_buffers(&command_buffer_allocate_info)}
             .expect("Could not allocate command buffers")[0];
 
+        let sync_objects = SyncObjects::new(&logical_device);
         Renderer{
             instance,
             physical_device,
@@ -505,7 +507,8 @@ impl Renderer{
             graphics_pipeline,
             frame_buffers,
             command_pool,
-            command_buffer
+            command_buffer,
+            sync_objects
         }
     }
 
@@ -531,17 +534,23 @@ impl Renderer{
         unsafe{self.swap_chain_loader.destroy_swapchain(self.swap_chain,None)};
     }
 
-    pub fn cleanup(&self,sync_objects: &SyncObjects){
+    pub fn cleanup(&self){
         unsafe{self.logical_device().device_wait_idle()}
             .expect("Could not wait device idle");
         self.swap_chain_cleanup();
         unsafe{self.logical_device.destroy_pipeline(self.graphics_pipeline,None)};
         unsafe{self.logical_device.destroy_pipeline_layout(self.layout,None)};
         unsafe{self.logical_device.destroy_render_pass(self.render_pass,None)};
-        sync_objects.cleanup(self.logical_device());
+        self.sync_objects.cleanup(self.logical_device());
         unsafe{self.logical_device.destroy_command_pool(self.command_pool,None)};
         unsafe{self.logical_device.destroy_device(None)};
         unsafe{self.surface_loader.destroy_surface(self.surface,None)};
         unsafe{self.instance.destroy_instance(None)};
+    }
+}
+
+impl Drop for Renderer {
+    fn drop(&mut self) {
+        self.cleanup()
     }
 }
