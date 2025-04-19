@@ -1,8 +1,8 @@
 use ash::Device;
-use ash::vk::{CommandBufferResetFlags, Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use ash::vk::{CommandBufferResetFlags, Fence, Handle, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop};
+use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 use crate::renderer::{Renderer, SyncObjects};
 
@@ -11,6 +11,7 @@ pub struct App{
     pub window: Option<Window>,
     pub renderer: Option<Renderer>,
     pub sync_objects: Option<SyncObjects>,
+    pub close_requested: bool
 }
 
 impl ApplicationHandler for App{
@@ -19,7 +20,6 @@ impl ApplicationHandler for App{
         (
             WindowAttributes::default()
                 .with_title("vxl")
-                //.with_fullscreen(Some(Fullscreen::Borderless()))
         ).unwrap();
         self.renderer = Some(Renderer::new(&window));
         self.window = Some(window);
@@ -30,13 +30,23 @@ impl ApplicationHandler for App{
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
+                self.close_requested = true;
+                unsafe{self.renderer().logical_device().device_wait_idle()}
+                    .expect("Could not wait for device idle");
+                unsafe{self.renderer().logical_device().reset_command_buffer(self.renderer().command_buffer,CommandBufferResetFlags::default())}
+                     .expect("Could not reset command buffer");
+                self.renderer().cleanup(self.sync_objects.as_ref().unwrap());
                 event_loop.exit();
-                self.sync_objects.as_ref().unwrap().cleanup(self.renderer().logical_device());
-                self.renderer.as_ref().unwrap().cleanup();
+                
             },
             WindowEvent::RedrawRequested => {
-                self.draw_frame(self.renderer().logical_device());
+                if !self.close_requested {
+                    self.draw_frame(self.renderer().logical_device());
+                }
             },
+            WindowEvent::Resized(_)=>{
+                self.window.as_ref().unwrap().request_redraw();
+            }
             _=>()
         }
     }
@@ -47,10 +57,6 @@ impl App{
     fn draw_frame(&self,logical_device:&Device){
         let sync_objects = self.sync_objects.as_ref().unwrap();
         let fences = [sync_objects.in_flight_fence];
-        unsafe{logical_device.wait_for_fences(&fences,true,u64::MAX)}
-            .expect("Error in wait for inflight fence");
-        unsafe{logical_device.reset_fences(&fences)}
-            .expect("Error in reset inflight fence");
         let (image_index,_) = unsafe{self.renderer().swap_chain().loader.acquire_next_image(
             self.renderer().swap_chain().swap_chain,
             u64::MAX,
@@ -64,6 +70,7 @@ impl App{
         let command_buffers = [self.renderer().command_buffer];
         let signal_semaphores = [sync_objects.render_finished_semaphore];
         let wait_semaphores = [sync_objects.image_available_semaphore];
+
         let submit_info = SubmitInfo::default()
             .command_buffers(&command_buffers)
             .signal_semaphores(&signal_semaphores)
@@ -71,13 +78,12 @@ impl App{
             .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT]);
 
         let queue = unsafe{logical_device.get_device_queue(self.renderer().swap_chain()
-            .queue_family_indices.graphics,0)};
+                                                               .queue_family_indices.graphics,0)};
         unsafe{logical_device.queue_submit(
             queue,
             &[submit_info],
             sync_objects.in_flight_fence)}
             .expect("Could not submit draw command buffer");
-
         let swap_chains = [self.renderer().swap_chain().swap_chain];
         let image_indices = [image_index];
         let present_info = PresentInfoKHR::default()
@@ -88,6 +94,12 @@ impl App{
             self.renderer().swap_chain().loader.queue_present(queue, &present_info)
                 .expect("Could not present queue");
         }
-        //self.window.as_ref().unwrap().request_redraw();
+        unsafe{logical_device.wait_for_fences(&fences,true,u64::MAX)}
+            .expect("Error in wait for inflight fence");
+        unsafe{logical_device.reset_fences(&fences)}
+            .expect("Error in reset inflight fence");
+        if !self.close_requested{
+            self.window.as_ref().unwrap().request_redraw();
+        }
     }
 }

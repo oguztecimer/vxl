@@ -1,7 +1,7 @@
 use std::ffi::CString;
 use ash::{Device, Entry, Instance, vk};
 use ash::khr::{surface, swapchain};
-use ash::vk::{AccessFlags, ApplicationInfo, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ClearColorValue, ClearValue, ColorComponentFlags, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandBufferUsageFlags, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, CompositeAlphaFlagsKHR, CullModeFlags, DeviceCreateInfo, DeviceQueueCreateInfo, DynamicState, Extent2D, Fence, FenceCreateFlags, FenceCreateInfo, Format, Framebuffer, FramebufferCreateInfo, FrontFace, GraphicsPipelineCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, InstanceCreateInfo, Offset2D, PFN_vkCreateSemaphore, PhysicalDevice, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineStageFlags, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PresentModeKHR, PrimitiveTopology, Rect2D, RenderPass, RenderPassBeginInfo, RenderPassCreateInfo, SampleCountFlags, Semaphore, SemaphoreCreateFlags, SemaphoreCreateInfo, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SharingMode, SUBPASS_EXTERNAL, SubpassContents, SubpassDependency, SubpassDescription, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR, Viewport};
+use ash::vk::{AccessFlags, ApplicationInfo, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ClearColorValue, ClearValue, ColorComponentFlags, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandBufferUsageFlags, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, CompositeAlphaFlagsKHR, CullModeFlags, DeviceCreateInfo, DeviceQueueCreateInfo, DynamicState, Extent2D, Fence, FenceCreateFlags, FenceCreateInfo, Format, Framebuffer, FramebufferCreateInfo, FrontFace, GraphicsPipelineCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, InstanceCreateInfo, Offset2D, PhysicalDevice, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineStageFlags, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PresentModeKHR, PrimitiveTopology, Rect2D, RenderPass, RenderPassBeginInfo, RenderPassCreateInfo, SampleCountFlags, Semaphore, SemaphoreCreateFlags, SemaphoreCreateInfo, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SharingMode, SUBPASS_EXTERNAL, SubpassContents, SubpassDependency, SubpassDescription, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR, Viewport, API_VERSION_1_3};
 use vk_shader_macros::include_glsl;
 use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use winit::window::Window;
@@ -48,8 +48,7 @@ pub struct QueueFamilyIndices{
 impl SyncObjects {
     pub fn new(logical_device: &Device) -> SyncObjects {
         let semaphore_create_info = SemaphoreCreateInfo::default();
-        let fence_create_info = FenceCreateInfo::default()
-            .flags(FenceCreateFlags::SIGNALED);
+        let fence_create_info = FenceCreateInfo::default();
         let image_available_semaphore = unsafe { logical_device.create_semaphore(&semaphore_create_info, None) }
             .expect("Could not create semaphore");
         let render_finished_semaphore = unsafe { logical_device.create_semaphore(&semaphore_create_info, None) }
@@ -64,9 +63,9 @@ impl SyncObjects {
     }
 
     pub fn cleanup(&self,logical_device: &Device) {
+        unsafe{logical_device.destroy_fence(self.in_flight_fence,None)};
         unsafe{logical_device.destroy_semaphore(self.image_available_semaphore,None)};
         unsafe{logical_device.destroy_semaphore(self.render_finished_semaphore,None)};
-        unsafe{logical_device.destroy_fence(self.in_flight_fence,None)};
     }
 }
 
@@ -74,7 +73,8 @@ impl Renderer{
     pub fn logical_device(&self) -> &Device {&self.logical_device}
     pub fn swap_chain(&self) -> &SwapChain {&self.swap_chain}
     fn create_instance(window: &Window,entry: &Entry) -> Instance{
-        let application_info = ApplicationInfo::default();
+        let application_info = ApplicationInfo::default()
+            .api_version(API_VERSION_1_3);
         let create_flags =
             if cfg!(any(target_os = "macos", target_os = "ios")) {
                 vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR
@@ -136,7 +136,7 @@ impl Renderer{
     fn create_logical_device(
         queue_family_index:u32,
         instance: &Instance,
-        physical_device: &PhysicalDevice
+        physical_device: PhysicalDevice
     ) -> Device{
         let device_queue_create_info = DeviceQueueCreateInfo::default()
             .queue_priorities(&[1.0])
@@ -151,7 +151,7 @@ impl Renderer{
             .enabled_extension_names(&device_extension_names_raw);
         unsafe{instance.create_device
         (
-            *physical_device,
+            physical_device,
             &create_device_info,
             None
         )}.expect("Could not create logical device!")
@@ -193,7 +193,7 @@ impl Renderer{
         unsafe{self.logical_device.begin_command_buffer(self.command_buffer,&command_buffer_begin_info)}
             .expect("Could not begin recording the command buffer");
 
-        let clear_values= [ClearValue{color: ClearColorValue::default()}];
+        let clear_values= [ClearValue{color: ClearColorValue{uint32:[0,0,0,0]}}];
         let render_pass_begin_info = RenderPassBeginInfo::default()
             .render_pass(self.render_pass)
             .clear_values(&clear_values)
@@ -222,6 +222,8 @@ impl Renderer{
         unsafe{self.logical_device.cmd_set_scissor(self.command_buffer,0,&scissors)}
         unsafe{self.logical_device.cmd_draw(self.command_buffer,3,1,0,0)}
         unsafe{self.logical_device.cmd_end_render_pass(self.command_buffer)}
+        unsafe{self.logical_device.end_command_buffer(self.command_buffer)}
+            .expect("Could not end recording command buffer");
     }
 
     //create_command_buffer
@@ -234,7 +236,7 @@ impl Renderer{
         let (physical_device,queue_family_index) =
             Self::create_physical_device_and_queue_family_index(&instance,&surface_loader,&surface);
         let logical_device =
-            Self::create_logical_device(queue_family_index,&instance,&physical_device);
+            Self::create_logical_device(queue_family_index,&instance,physical_device);
 
         let swap_chain = SwapChain::new(
             queue_family_index,
@@ -419,22 +421,24 @@ impl Renderer{
         }
     }
 
-    pub fn cleanup(&self){
-        self.swap_chain.cleanup(&self.logical_device);
+    pub fn cleanup(&self,sync_objects: &SyncObjects){
         unsafe{self.logical_device.destroy_command_pool(self.command_pool,None)};
-        unsafe{self.surface_loader.destroy_surface(self.surface,None)};
-        unsafe{self.instance.destroy_instance(None)};
         unsafe{self.logical_device.destroy_pipeline(self.graphics_pipeline,None)};
         unsafe{self.logical_device.destroy_pipeline_layout(self.layout,None)};
         unsafe{self.logical_device.destroy_render_pass(self.render_pass,None)};
+        sync_objects.cleanup(self.logical_device());
         for fb in &self.frame_buffers {
             unsafe{self.logical_device.destroy_framebuffer(*fb, None)};
         }
+        self.swap_chain.cleanup(&self.logical_device);
+        unsafe{self.surface_loader.destroy_surface(self.surface,None)};
+        unsafe{self.logical_device.destroy_device(None)};
+        unsafe{self.instance.destroy_instance(None)};
+
     }
 }
 
 impl SwapChain{
-    pub fn image_format(&self) -> &Format {&self.image_format}
     pub fn new(
         queue_family_index: u32,
         instance: &Instance,
@@ -482,11 +486,11 @@ impl SwapChain{
                 .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
                 .present_mode(surface_present_mode)
             ;
+
+
         let swap_chain =
             unsafe{loader.create_swapchain(&create_info,None)}
                 .expect("Could not create swap chain!");
-
-
         let images =
             unsafe{loader.get_swapchain_images(swap_chain)}
                 .expect("Could not load swap chain images");
@@ -510,7 +514,6 @@ impl SwapChain{
                     unsafe{logical_device.create_image_view(&info,None)}
                         .unwrap()
                 }).collect();
-
         SwapChain{
             queue_family_indices,
             swap_chain,
@@ -527,5 +530,6 @@ impl SwapChain{
             unsafe{logical_device.destroy_image_view(*view,None)};
         }
         unsafe{self.loader.destroy_swapchain(self.swap_chain,None)};
+
     }
 }
