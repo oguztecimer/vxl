@@ -532,14 +532,16 @@ impl Renderer{
     }
 
     pub fn cleanup(&self,sync_objects: &SyncObjects){
-        unsafe{self.logical_device.destroy_command_pool(self.command_pool,None)};
+        unsafe{self.logical_device().device_wait_idle()}
+            .expect("Could not wait device idle");
+        self.swap_chain_cleanup();
         unsafe{self.logical_device.destroy_pipeline(self.graphics_pipeline,None)};
         unsafe{self.logical_device.destroy_pipeline_layout(self.layout,None)};
         unsafe{self.logical_device.destroy_render_pass(self.render_pass,None)};
         sync_objects.cleanup(self.logical_device());
-        self.swap_chain_cleanup();
-        unsafe{self.surface_loader.destroy_surface(self.surface,None)};
+        unsafe{self.logical_device.destroy_command_pool(self.command_pool,None)};
         unsafe{self.logical_device.destroy_device(None)};
+        unsafe{self.surface_loader.destroy_surface(self.surface,None)};
         unsafe{self.instance.destroy_instance(None)};
     }
 }
