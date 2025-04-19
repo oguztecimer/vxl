@@ -474,12 +474,13 @@ impl Renderer{
         }
     }
 
-    pub fn cleanup(&self,sync_objects: &SyncObjects){
-        unsafe{self.logical_device.destroy_command_pool(self.command_pool,None)};
-        unsafe{self.logical_device.destroy_pipeline(self.graphics_pipeline,None)};
-        unsafe{self.logical_device.destroy_pipeline_layout(self.layout,None)};
-        unsafe{self.logical_device.destroy_render_pass(self.render_pass,None)};
-        sync_objects.cleanup(self.logical_device());
+    pub fn recreate_swap_chain(&mut self){
+        unsafe{self.logical_device().device_wait_idle()}
+            .expect("Could not wait device idle");
+        self.swap_chain_cleanup();
+    }
+
+    pub fn swap_chain_cleanup(&self){
         for fb in &self.frame_buffers {
             unsafe{self.logical_device.destroy_framebuffer(*fb, None)};
         }
@@ -487,9 +488,17 @@ impl Renderer{
             unsafe{self.logical_device.destroy_image_view(*view,None)};
         }
         unsafe{self.swap_chain_loader.destroy_swapchain(self.swap_chain,None)};
+    }
+
+    pub fn cleanup(&self,sync_objects: &SyncObjects){
+        unsafe{self.logical_device.destroy_command_pool(self.command_pool,None)};
+        unsafe{self.logical_device.destroy_pipeline(self.graphics_pipeline,None)};
+        unsafe{self.logical_device.destroy_pipeline_layout(self.layout,None)};
+        unsafe{self.logical_device.destroy_render_pass(self.render_pass,None)};
+        sync_objects.cleanup(self.logical_device());
+        self.swap_chain_cleanup();
         unsafe{self.surface_loader.destroy_surface(self.surface,None)};
         unsafe{self.logical_device.destroy_device(None)};
         unsafe{self.instance.destroy_instance(None)};
-
     }
 }
