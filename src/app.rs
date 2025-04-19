@@ -70,14 +70,12 @@ impl App{
         let command_buffers = [self.renderer().command_buffer];
         let signal_semaphores = [sync_objects.render_finished_semaphore];
         let wait_semaphores = [sync_objects.image_available_semaphore];
-
+        let queue = self.renderer().queue_families.graphics.1;
         let submit_info = SubmitInfo::default()
             .command_buffers(&command_buffers)
             .signal_semaphores(&signal_semaphores)
             .wait_semaphores(&wait_semaphores)
             .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT]);
-
-        let queue = unsafe{logical_device.get_device_queue(self.renderer().queue_family_indices.graphics,0)};
         unsafe{logical_device.queue_submit(
             queue,
             &[submit_info],

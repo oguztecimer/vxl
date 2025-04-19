@@ -16,7 +16,7 @@ pub struct Renderer{
     surface_loader: surface::Instance,
     logical_device: Device,
     pub swap_chain: SwapchainKHR,
-    pub queue_family_indices: QueueFamilyIndices,
+    pub queue_families: QueueFamilies,
     swap_chain_image_views: Vec<ImageView>,
     pub swap_chain_loader: swapchain::Device,
     swap_chain_extent: Extent2D,
@@ -34,8 +34,8 @@ pub struct SyncObjects{
     pub in_flight_fence:Fence
 }
 
-pub struct QueueFamilyIndices{
-    pub graphics : u32,
+pub struct QueueFamilies{
+    pub graphics : (u32,Queue)
 }
 
 impl SyncObjects {
@@ -126,13 +126,13 @@ impl Renderer{
 
 
     fn create_logical_device(
-        queue_family_index:u32,
+        graphics_queue_family_index:u32,
         instance: &Instance,
         physical_device: PhysicalDevice
     ) -> Device{
         let device_queue_create_info = DeviceQueueCreateInfo::default()
             .queue_priorities(&[1.0])
-            .queue_family_index(queue_family_index);
+            .queue_family_index(graphics_queue_family_index);
         let device_extension_names_raw = [swapchain::NAME.as_ptr(),
             #[cfg(any(target_os = "macos", target_os = "ios"))]
                 ash::khr::portability_subset::NAME.as_ptr(),
@@ -225,14 +225,15 @@ impl Renderer{
         let instance = Self::create_instance(window,&entry);
         let surface = Self::create_surface(window,&entry,&instance);
         let surface_loader = surface::Instance::new(&entry,&instance);
-        let (physical_device,queue_family_index) =
+        let (physical_device,graphics_family_index) =
             Self::create_physical_device_and_queue_family_index(&instance,&surface_loader,&surface);
         let logical_device =
-            Self::create_logical_device(queue_family_index,&instance,physical_device);
+            Self::create_logical_device(graphics_family_index,&instance,physical_device);
 
         //swap_chain
-        let queue_family_indices = QueueFamilyIndices{
-            graphics : queue_family_index
+        let queue = unsafe{logical_device.get_device_queue(graphics_family_index,0)};
+        let queue_families = QueueFamilies{
+            graphics : (graphics_family_index,queue)
         };
         let swap_chain_loader = swapchain::Device::new(&instance,&logical_device);
         let surface_present_modes = unsafe{surface_loader
@@ -254,7 +255,7 @@ impl Renderer{
         let image_format = surface_formats[0].format;
         let swap_chain_color_space = surface_formats[0].color_space;
         let swap_chain_extent = surface_capabilities.current_extent;
-        let queue_family_indices_array = [queue_family_indices.graphics];
+        let queue_family_indices_array = [queue_families.graphics.0];
         let swap_chain_create_info =
             SwapchainCreateInfoKHR::default()
                 .surface(surface)
@@ -445,7 +446,7 @@ impl Renderer{
             }).collect();
 
         let command_pool =
-            Self::create_command_pool(&logical_device,queue_family_indices.graphics);
+            Self::create_command_pool(&logical_device,queue_families.graphics.0);
 
         let command_buffer_allocate_info =
             CommandBufferAllocateInfo::default()
@@ -460,7 +461,7 @@ impl Renderer{
             surface,
             surface_loader,
             logical_device,
-            queue_family_indices,
+            queue_families,
             swap_chain,
             swap_chain_image_views,
             swap_chain_loader,
