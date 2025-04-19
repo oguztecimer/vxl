@@ -9,21 +9,17 @@ use winit::window::Window;
 const VERT:&[u32] = include_glsl!("shaders/shader.vert");
 const FRAG:&[u32] = include_glsl!("shaders/shader.frag");
 
-pub struct SwapChain{
-    pub swap_chain: SwapchainKHR,
-    pub queue_family_indices: QueueFamilyIndices,
-    image_views: Vec<ImageView>,
-    pub loader: swapchain::Device,
-    image_format: Format,
-    extent: Extent2D
-}
 
 pub struct Renderer{
     instance: Instance,
     surface: SurfaceKHR,
     surface_loader: surface::Instance,
     logical_device: Device,
-    swap_chain: SwapChain,
+    pub swap_chain: SwapchainKHR,
+    pub queue_family_indices: QueueFamilyIndices,
+    swap_chain_image_views: Vec<ImageView>,
+    pub swap_chain_loader: swapchain::Device,
+    swap_chain_extent: Extent2D,
     render_pass: RenderPass,
     layout: PipelineLayout,
     graphics_pipeline: vk::Pipeline,
@@ -68,7 +64,6 @@ impl SyncObjects {
 
 impl Renderer{
     pub fn logical_device(&self) -> &Device {&self.logical_device}
-    pub fn swap_chain(&self) -> &SwapChain {&self.swap_chain}
     fn create_instance(window: &Window,entry: &Entry) -> Instance{
         let application_info = ApplicationInfo::default()
             .api_version(API_VERSION_1_3);
@@ -195,7 +190,7 @@ impl Renderer{
             .render_pass(self.render_pass)
             .clear_values(&clear_values)
             .framebuffer(self.frame_buffers[image_index])
-            .render_area(Rect2D{offset:Offset2D{x:0,y:0},extent:self.swap_chain.extent});
+            .render_area(Rect2D{offset:Offset2D{x:0,y:0},extent:self.swap_chain_extent});
 
         unsafe{self.logical_device.cmd_begin_render_pass(self.command_buffer,&render_pass_begin_info,SubpassContents::INLINE)};
         unsafe{self.logical_device.cmd_bind_pipeline(self.command_buffer,PipelineBindPoint::GRAPHICS,self.graphics_pipeline)};
@@ -205,11 +200,11 @@ impl Renderer{
             .y(0.0)
             .min_depth(0.0)
             .max_depth(0.0)
-            .width(self.swap_chain.extent.width as f32)
-            .height(self.swap_chain.extent.height as f32);
+            .width(self.swap_chain_extent.width as f32)
+            .height(self.swap_chain_extent.height as f32);
 
         let scissor = Rect2D::default()
-            .extent(self.swap_chain.extent)
+            .extent(self.swap_chain_extent)
             .offset(Offset2D{x:0,y:0});
 
         let viewports = [viewport];
@@ -235,14 +230,73 @@ impl Renderer{
         let logical_device =
             Self::create_logical_device(queue_family_index,&instance,physical_device);
 
-        let swap_chain = SwapChain::new(
-            queue_family_index,
-            &instance,
-            &surface_loader,
-            &physical_device,
-            &logical_device,
-            &surface
-        );
+        //swap_chain
+        let queue_family_indices = QueueFamilyIndices{
+            graphics : queue_family_index
+        };
+        let swap_chain_loader = swapchain::Device::new(&instance,&logical_device);
+        let surface_present_modes = unsafe{surface_loader
+            .get_physical_device_surface_present_modes(physical_device,surface)}
+            .expect("Could not get surface present modes.");
+        let surface_capabilities = unsafe{surface_loader
+            .get_physical_device_surface_capabilities(physical_device,surface)}
+            .expect("Could not get surface capabilities");
+        let surface_formats = unsafe{surface_loader
+            .get_physical_device_surface_formats(physical_device,surface)}
+            .expect("Could not get surface formats");
+        let surface_present_mode = surface_present_modes
+            .iter()
+            .cloned()
+            .find(|&mode| mode == PresentModeKHR::MAILBOX)
+            .unwrap_or(PresentModeKHR::FIFO);
+        let min_image_count =
+            (surface_capabilities.min_image_count+1).min(surface_capabilities.max_image_count);
+        let image_format = surface_formats[0].format;
+        let swap_chain_color_space = surface_formats[0].color_space;
+        let swap_chain_extent = surface_capabilities.current_extent;
+        let queue_family_indices_array = [queue_family_indices.graphics];
+        let swap_chain_create_info =
+            SwapchainCreateInfoKHR::default()
+                .surface(surface)
+                .min_image_count(min_image_count)
+                .image_format(image_format)
+                .image_color_space(swap_chain_color_space)
+                .image_extent(swap_chain_extent)
+                .image_array_layers(1)
+                .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
+                .image_sharing_mode(SharingMode::EXCLUSIVE)
+                .queue_family_indices(&queue_family_indices_array)
+                .pre_transform(surface_capabilities.current_transform)
+                .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
+                .present_mode(surface_present_mode)
+            ;
+        let swap_chain =
+            unsafe{swap_chain_loader.create_swapchain(&swap_chain_create_info,None)}
+                .expect("Could not create swap chain!");
+        let images =
+            unsafe{swap_chain_loader.get_swapchain_images(swap_chain)}
+                .expect("Could not load swap chain images");
+        let swap_chain_image_views:Vec<ImageView> =
+            images
+                .iter()
+                .map(|&img|{
+                    let subresource_range =
+                        ImageSubresourceRange::default()
+                            .aspect_mask(ImageAspectFlags::COLOR)
+                            .base_mip_level(0)
+                            .level_count(1)
+                            .base_array_layer(0)
+                            .layer_count(1);
+                    let info =
+                        ImageViewCreateInfo::default()
+                            .subresource_range(subresource_range)
+                            .image(img)
+                            .view_type(ImageViewType::TYPE_2D)
+                            .format(image_format);
+                    unsafe{logical_device.create_image_view(&info,None)}
+                        .unwrap()
+                }).collect();
+        //
 
         let vert_module = Self::create_shader_module(&logical_device, VERT);
         let frag_module = Self::create_shader_module(&logical_device, FRAG);
@@ -310,7 +364,7 @@ impl Renderer{
         //Render pass
         let color_attachment = AttachmentDescription::default()
             .samples(SampleCountFlags::TYPE_1)
-            .format(swap_chain.image_format)
+            .format(image_format)
             .load_op(AttachmentLoadOp::CLEAR)
             .store_op(AttachmentStoreOp::STORE)
             .stencil_load_op(AttachmentLoadOp::DONT_CARE)
@@ -378,20 +432,20 @@ impl Renderer{
         //
 
         let frame_buffers : Vec<Framebuffer> =
-            swap_chain.image_views.iter().map(|&image_view|{
+            swap_chain_image_views.iter().map(|&image_view|{
                 let image_view_array = [image_view];
                 let frame_buffer_create_info = FramebufferCreateInfo::default()
                     .render_pass(render_pass)
                    .attachments(&image_view_array)
-                   .width(swap_chain.extent.width)
-                   .height(swap_chain.extent.height)
+                   .width(swap_chain_extent.width)
+                   .height(swap_chain_extent.height)
                    .layers(1);
                 unsafe{logical_device.create_framebuffer(&frame_buffer_create_info,None)}
                     .expect("Could not create frame buffer")
             }).collect();
 
         let command_pool =
-            Self::create_command_pool(&logical_device,swap_chain.queue_family_indices.graphics);
+            Self::create_command_pool(&logical_device,queue_family_indices.graphics);
 
         let command_buffer_allocate_info =
             CommandBufferAllocateInfo::default()
@@ -406,7 +460,11 @@ impl Renderer{
             surface,
             surface_loader,
             logical_device,
+            queue_family_indices,
             swap_chain,
+            swap_chain_image_views,
+            swap_chain_loader,
+            swap_chain_extent,
             layout,
             render_pass,
             graphics_pipeline,
@@ -425,105 +483,13 @@ impl Renderer{
         for fb in &self.frame_buffers {
             unsafe{self.logical_device.destroy_framebuffer(*fb, None)};
         }
-        self.swap_chain.cleanup(&self.logical_device);
+        for view in &self.swap_chain_image_views{
+            unsafe{self.logical_device.destroy_image_view(*view,None)};
+        }
+        unsafe{self.swap_chain_loader.destroy_swapchain(self.swap_chain,None)};
         unsafe{self.surface_loader.destroy_surface(self.surface,None)};
         unsafe{self.logical_device.destroy_device(None)};
         unsafe{self.instance.destroy_instance(None)};
-
-    }
-}
-
-impl SwapChain{
-    pub fn new(
-        queue_family_index: u32,
-        instance: &Instance,
-        surface_loader: &surface::Instance,
-        physical_device: &PhysicalDevice,
-        logical_device: &Device,
-        surface: &SurfaceKHR
-    ) -> SwapChain{
-        let queue_family_indices = QueueFamilyIndices{
-            graphics : queue_family_index
-        };
-        let loader = swapchain::Device::new(&instance,&logical_device);
-        let surface_present_modes = unsafe{surface_loader
-            .get_physical_device_surface_present_modes(*physical_device,*surface)}
-            .expect("Could not get surface present modes.");
-        let surface_capabilities = unsafe{surface_loader
-            .get_physical_device_surface_capabilities(*physical_device,*surface)}
-            .expect("Could not get surface capabilities");
-        let surface_formats = unsafe{surface_loader
-            .get_physical_device_surface_formats(*physical_device,*surface)}
-            .expect("Could not get surface formats");
-        let surface_present_mode = surface_present_modes
-            .iter()
-            .cloned()
-            .find(|&mode| mode == PresentModeKHR::MAILBOX)
-            .unwrap_or(PresentModeKHR::FIFO);
-        let min_image_count =
-            (surface_capabilities.min_image_count+1).min(surface_capabilities.max_image_count);
-        let image_format = surface_formats[0].format;
-        let swap_chain_color_space = surface_formats[0].color_space;
-        let extent = surface_capabilities.current_extent;
-        let queue_family_indices_array = [queue_family_indices.graphics];
-        let create_info =
-            SwapchainCreateInfoKHR::default()
-                .surface(*surface)
-                .min_image_count(min_image_count)
-                .image_format(image_format)
-                .image_color_space(swap_chain_color_space)
-                .image_extent(extent)
-                .image_array_layers(1)
-                .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
-                .image_sharing_mode(SharingMode::EXCLUSIVE)
-                .queue_family_indices(&queue_family_indices_array)
-                .pre_transform(surface_capabilities.current_transform)
-                .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
-                .present_mode(surface_present_mode)
-            ;
-
-
-        let swap_chain =
-            unsafe{loader.create_swapchain(&create_info,None)}
-                .expect("Could not create swap chain!");
-        let images =
-            unsafe{loader.get_swapchain_images(swap_chain)}
-                .expect("Could not load swap chain images");
-        let image_views =
-            images
-                .iter()
-                .map(|&img|{
-                    let subresource_range =
-                        ImageSubresourceRange::default()
-                            .aspect_mask(ImageAspectFlags::COLOR)
-                            .base_mip_level(0)
-                            .level_count(1)
-                            .base_array_layer(0)
-                            .layer_count(1);
-                    let info =
-                        ImageViewCreateInfo::default()
-                            .subresource_range(subresource_range)
-                            .image(img)
-                            .view_type(ImageViewType::TYPE_2D)
-                            .format(image_format);
-                    unsafe{logical_device.create_image_view(&info,None)}
-                        .unwrap()
-                }).collect();
-        SwapChain{
-            queue_family_indices,
-            swap_chain,
-            image_views,
-            loader,
-            image_format,
-            extent,
-        }
-    }
-
-    pub fn cleanup(&self,logical_device: &Device){
-        for view in &self.image_views{
-            unsafe{logical_device.destroy_image_view(*view,None)};
-        }
-        unsafe{self.loader.destroy_swapchain(self.swap_chain,None)};
 
     }
 }

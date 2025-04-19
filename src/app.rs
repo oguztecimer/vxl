@@ -57,8 +57,8 @@ impl App{
     fn draw_frame(&self,logical_device:&Device){
         let sync_objects = self.sync_objects.as_ref().unwrap();
         let fences = [sync_objects.in_flight_fence];
-        let (image_index,_) = unsafe{self.renderer().swap_chain().loader.acquire_next_image(
-            self.renderer().swap_chain().swap_chain,
+        let (image_index,_) = unsafe{self.renderer().swap_chain_loader.acquire_next_image(
+            self.renderer().swap_chain,
             u64::MAX,
             sync_objects.image_available_semaphore,
             Fence::null()
@@ -77,21 +77,20 @@ impl App{
             .wait_semaphores(&wait_semaphores)
             .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT]);
 
-        let queue = unsafe{logical_device.get_device_queue(self.renderer().swap_chain()
-                                                               .queue_family_indices.graphics,0)};
+        let queue = unsafe{logical_device.get_device_queue(self.renderer().queue_family_indices.graphics,0)};
         unsafe{logical_device.queue_submit(
             queue,
             &[submit_info],
             sync_objects.in_flight_fence)}
             .expect("Could not submit draw command buffer");
-        let swap_chains = [self.renderer().swap_chain().swap_chain];
+        let swap_chains = [self.renderer().swap_chain];
         let image_indices = [image_index];
         let present_info = PresentInfoKHR::default()
             .wait_semaphores(&signal_semaphores)
             .swapchains(&swap_chains)
             .image_indices(&image_indices);
         unsafe {
-            self.renderer().swap_chain().loader.queue_present(queue, &present_info)
+            self.renderer().swap_chain_loader.queue_present(queue, &present_info)
                 .expect("Could not present queue");
         }
         unsafe{logical_device.wait_for_fences(&fences,true,u64::MAX)}
