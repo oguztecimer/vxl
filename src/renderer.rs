@@ -12,6 +12,7 @@ const FRAG:&[u32] = include_glsl!("shaders/shader.frag");
 
 pub struct Renderer{
     instance: Instance,
+    physical_device: PhysicalDevice,
     surface: SurfaceKHR,
     surface_loader: surface::Instance,
     logical_device: Device,
@@ -165,11 +166,109 @@ impl Renderer{
         )}.expect("Could not create surface")
     }
 
+    fn create_swap_chain(
+        swap_chain_loader: &swapchain::Device,
+        logical_device:&Device,
+        surface_loader:&surface::Instance,
+        physical_device: &PhysicalDevice,
+        surface: &SurfaceKHR,
+        queue_families: &QueueFamilies
+    ) -> (
+        SwapchainKHR,
+        Format,
+        Vec<ImageView>,
+        Extent2D
+    ){
+
+        let surface_present_modes = unsafe{surface_loader
+            .get_physical_device_surface_present_modes(*physical_device,*surface)}
+            .expect("Could not get surface present modes.");
+        let surface_capabilities = unsafe{surface_loader
+            .get_physical_device_surface_capabilities(*physical_device,*surface)}
+            .expect("Could not get surface capabilities");
+        let surface_formats = unsafe{surface_loader
+            .get_physical_device_surface_formats(*physical_device,*surface)}
+            .expect("Could not get surface formats");
+        let surface_present_mode = surface_present_modes
+            .iter()
+            .cloned()
+            .find(|&mode| mode == PresentModeKHR::MAILBOX)
+            .unwrap_or(PresentModeKHR::FIFO);
+        let min_image_count =
+            (surface_capabilities.min_image_count+1).min(surface_capabilities.max_image_count);
+        let image_format = surface_formats[0].format;
+        let swap_chain_color_space = surface_formats[0].color_space;
+        let swap_chain_extent = surface_capabilities.current_extent;
+        let queue_family_indices_array = [queue_families.graphics.0];
+        let swap_chain_create_info =
+            SwapchainCreateInfoKHR::default()
+                .surface(*surface)
+                .min_image_count(min_image_count)
+                .image_format(image_format)
+                .image_color_space(swap_chain_color_space)
+                .image_extent(swap_chain_extent)
+                .image_array_layers(1)
+                .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
+                .image_sharing_mode(SharingMode::EXCLUSIVE)
+                .queue_family_indices(&queue_family_indices_array)
+                .pre_transform(surface_capabilities.current_transform)
+                .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
+                .present_mode(surface_present_mode)
+            ;
+        let swap_chain =
+            unsafe{swap_chain_loader.create_swapchain(&swap_chain_create_info,None)}
+                .expect("Could not create swap chain!");
+        let images =
+            unsafe{swap_chain_loader.get_swapchain_images(swap_chain)}
+                .expect("Could not load swap chain images");
+        let swap_chain_image_views:Vec<ImageView> =
+            images
+                .iter()
+                .map(|&img|{
+                    let subresource_range =
+                        ImageSubresourceRange::default()
+                            .aspect_mask(ImageAspectFlags::COLOR)
+                            .base_mip_level(0)
+                            .level_count(1)
+                            .base_array_layer(0)
+                            .layer_count(1);
+                    let info =
+                        ImageViewCreateInfo::default()
+                            .subresource_range(subresource_range)
+                            .image(img)
+                            .view_type(ImageViewType::TYPE_2D)
+                            .format(image_format);
+                    unsafe{logical_device.create_image_view(&info,None)}
+                        .unwrap()
+                }).collect();
+        (swap_chain,image_format,swap_chain_image_views,swap_chain_extent)
+    }
+
     fn create_shader_module(logical_device: &Device,code:&[u32]) -> ShaderModule{
         let shader_module_create_info = ShaderModuleCreateInfo::default()
             .code(code);
         unsafe{logical_device.create_shader_module(&shader_module_create_info,None)}
             .expect("Could not create shader module")
+    }
+
+    fn create_frame_buffers(
+        swap_chain_image_views:&Vec<ImageView>,
+        render_pass: RenderPass,
+        swap_chain_extent: Extent2D,
+        logical_device: &Device
+
+    )->Vec<Framebuffer>{
+        swap_chain_image_views.iter().map(|&image_view|{
+            let image_view_array = [image_view];
+            let frame_buffer_create_info = FramebufferCreateInfo::default()
+                .render_pass(render_pass)
+                .attachments(&image_view_array)
+                .width(swap_chain_extent.width)
+                .height(swap_chain_extent.height)
+                .layers(1);
+            unsafe{logical_device.create_framebuffer(&frame_buffer_create_info,None)}
+                .expect("Could not create frame buffer")
+        }).collect()
     }
 
     fn create_command_pool(logical_device: &Device,graphics_queue_family_index:u32) -> CommandPool{
@@ -236,68 +335,9 @@ impl Renderer{
             graphics : (graphics_family_index,queue)
         };
         let swap_chain_loader = swapchain::Device::new(&instance,&logical_device);
-        let surface_present_modes = unsafe{surface_loader
-            .get_physical_device_surface_present_modes(physical_device,surface)}
-            .expect("Could not get surface present modes.");
-        let surface_capabilities = unsafe{surface_loader
-            .get_physical_device_surface_capabilities(physical_device,surface)}
-            .expect("Could not get surface capabilities");
-        let surface_formats = unsafe{surface_loader
-            .get_physical_device_surface_formats(physical_device,surface)}
-            .expect("Could not get surface formats");
-        let surface_present_mode = surface_present_modes
-            .iter()
-            .cloned()
-            .find(|&mode| mode == PresentModeKHR::MAILBOX)
-            .unwrap_or(PresentModeKHR::FIFO);
-        let min_image_count =
-            (surface_capabilities.min_image_count+1).min(surface_capabilities.max_image_count);
-        let image_format = surface_formats[0].format;
-        let swap_chain_color_space = surface_formats[0].color_space;
-        let swap_chain_extent = surface_capabilities.current_extent;
-        let queue_family_indices_array = [queue_families.graphics.0];
-        let swap_chain_create_info =
-            SwapchainCreateInfoKHR::default()
-                .surface(surface)
-                .min_image_count(min_image_count)
-                .image_format(image_format)
-                .image_color_space(swap_chain_color_space)
-                .image_extent(swap_chain_extent)
-                .image_array_layers(1)
-                .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
-                .image_sharing_mode(SharingMode::EXCLUSIVE)
-                .queue_family_indices(&queue_family_indices_array)
-                .pre_transform(surface_capabilities.current_transform)
-                .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
-                .present_mode(surface_present_mode)
-            ;
-        let swap_chain =
-            unsafe{swap_chain_loader.create_swapchain(&swap_chain_create_info,None)}
-                .expect("Could not create swap chain!");
-        let images =
-            unsafe{swap_chain_loader.get_swapchain_images(swap_chain)}
-                .expect("Could not load swap chain images");
-        let swap_chain_image_views:Vec<ImageView> =
-            images
-                .iter()
-                .map(|&img|{
-                    let subresource_range =
-                        ImageSubresourceRange::default()
-                            .aspect_mask(ImageAspectFlags::COLOR)
-                            .base_mip_level(0)
-                            .level_count(1)
-                            .base_array_layer(0)
-                            .layer_count(1);
-                    let info =
-                        ImageViewCreateInfo::default()
-                            .subresource_range(subresource_range)
-                            .image(img)
-                            .view_type(ImageViewType::TYPE_2D)
-                            .format(image_format);
-                    unsafe{logical_device.create_image_view(&info,None)}
-                        .unwrap()
-                }).collect();
-        //
+
+        let (swap_chain,image_format,swap_chain_image_views,swap_chain_extent) =
+            Self::create_swap_chain(&swap_chain_loader,&logical_device,&surface_loader,&physical_device,&surface,&queue_families);
 
         let vert_module = Self::create_shader_module(&logical_device, VERT);
         let frag_module = Self::create_shader_module(&logical_device, FRAG);
@@ -430,20 +470,13 @@ impl Renderer{
         unsafe{logical_device.destroy_shader_module(vert_module,None)};
         unsafe{logical_device.destroy_shader_module(frag_module,None)};
 
-        //
 
-        let frame_buffers : Vec<Framebuffer> =
-            swap_chain_image_views.iter().map(|&image_view|{
-                let image_view_array = [image_view];
-                let frame_buffer_create_info = FramebufferCreateInfo::default()
-                    .render_pass(render_pass)
-                   .attachments(&image_view_array)
-                   .width(swap_chain_extent.width)
-                   .height(swap_chain_extent.height)
-                   .layers(1);
-                unsafe{logical_device.create_framebuffer(&frame_buffer_create_info,None)}
-                    .expect("Could not create frame buffer")
-            }).collect();
+        let frame_buffers = Self::create_frame_buffers(
+            &swap_chain_image_views,
+            render_pass,
+            swap_chain_extent,
+            &logical_device
+        );
 
         let command_pool =
             Self::create_command_pool(&logical_device,queue_families.graphics.0);
@@ -458,13 +491,14 @@ impl Renderer{
 
         Renderer{
             instance,
+            physical_device,
             surface,
             surface_loader,
             logical_device,
             queue_families,
+            swap_chain_loader,
             swap_chain,
             swap_chain_image_views,
-            swap_chain_loader,
             swap_chain_extent,
             layout,
             render_pass,
@@ -479,6 +513,12 @@ impl Renderer{
         unsafe{self.logical_device().device_wait_idle()}
             .expect("Could not wait device idle");
         self.swap_chain_cleanup();
+        let (swap_chain,_,swap_chain_image_views,swap_chain_extent) =
+            Self::create_swap_chain(&self.swap_chain_loader,&self.logical_device,&self.surface_loader,&self.physical_device,&self.surface,&self.queue_families);
+        self.frame_buffers = Self::create_frame_buffers(&swap_chain_image_views,self.render_pass,swap_chain_extent,&self.logical_device);
+        self.swap_chain = swap_chain;
+        self.swap_chain_image_views = swap_chain_image_views;
+        self.swap_chain_extent = swap_chain_extent;
     }
 
     pub fn swap_chain_cleanup(&self){
