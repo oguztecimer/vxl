@@ -163,17 +163,19 @@ impl Renderer{
             let queue_family_properties_in_all_devices = unsafe{instance.get_physical_device_queue_family_properties(pd)};
             for i in 0..queue_family_properties_in_all_devices.len(){
                 let queue_family_properties = queue_family_properties_in_all_devices[i];
-                let supports_surface =unsafe{surface_loader.get_physical_device_surface_support(
-                    pd,
-                    i as u32,
-                    *surface,
-                )}
-                    .expect("Could not check if surface is supported");
-                if !supports_surface{continue;}
+                
                 if queue_family_properties.queue_flags.contains(QueueFlags::GRAPHICS){
                     if graphic_index.is_none() {
-                        graphic_index = Some(i);
-                        physical_device = Some(pd);
+                        let supports_surface =unsafe{surface_loader.get_physical_device_surface_support(
+                            pd,
+                            i as u32,
+                            *surface,
+                        )}
+                            .expect("Could not check if surface is supported");
+                        if supports_surface {
+                            graphic_index = Some(i);
+                            physical_device = Some(pd);
+                        }
                     }
                 } else if transfer_index.is_none() && queue_family_properties.queue_flags.contains(QueueFlags::TRANSFER){
                     transfer_index = Some(i);
