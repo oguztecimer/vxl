@@ -75,8 +75,10 @@ pub struct SyncObjects{
     pub in_flight_fence:Fence
 }
 
+#[derive(Debug)]
 pub struct QueueFamilies{
-    pub graphics : (u32,Queue)
+    pub graphics : (u32,Queue),
+    pub transfer : (u32,Queue)
 }
 
 impl SyncObjects {
@@ -135,37 +137,51 @@ impl Renderer{
         unsafe{entry.create_instance(&create_info,None)
             .expect("Instance creation err")}
     }
-    fn create_physical_device_and_queue_family_index(
+    fn create_physical_device_and_queue_family_indices(
         instance: &Instance,
         surface_loader: &surface::Instance,
         surface: &SurfaceKHR
-    ) -> (PhysicalDevice,u32){
+    ) -> (PhysicalDevice,u32,u32){
         let physical_devices = unsafe{instance.enumerate_physical_devices()}
             .expect("Physical device error");
         if physical_devices.len() == 0{
             panic!("failed to find GPUs with Vulkan support!");
         }
-        physical_devices.iter()
-            .find_map(|&pd| {
-                unsafe{instance.get_physical_device_queue_family_properties(pd)}
-                    .iter()
-                    .enumerate()
-                    .find_map(|(index,&queue_family_properties)| {
-                        let supports_graphic_and_surface =
-                            queue_family_properties.queue_flags.contains(vk::QueueFlags::GRAPHICS)
-                                && unsafe{surface_loader.get_physical_device_surface_support(
-                                pd,
-                                index as u32,
-                                *surface,
-                            )}
-                                .unwrap();
-                        if supports_graphic_and_surface {
-                            Some((pd, index as u32))
-                        } else {
-                            None
-                        }
-                    })
-            }).expect("Couldn't find suitable device")
+
+        let mut graphic_index = None;
+        let mut transfer_index = None;
+        let mut physical_device = None;
+        for pd in physical_devices{
+            graphic_index = None;
+            transfer_index = None;
+            let queue_family_properties_in_all_devices = unsafe{instance.get_physical_device_queue_family_properties(pd)};
+            for i in 0..queue_family_properties_in_all_devices.len(){
+                let queue_family_properties = queue_family_properties_in_all_devices[i];
+                let supports_surface =unsafe{surface_loader.get_physical_device_surface_support(
+                    pd,
+                    i as u32,
+                    *surface,
+                )}
+                    .expect("Could not check if surface is supported");
+                if !supports_surface{continue;}
+                if queue_family_properties.queue_flags.contains(QueueFlags::GRAPHICS){
+                    if graphic_index.is_none() {
+                        graphic_index = Some(i);
+                        physical_device = Some(pd);
+                    }
+                } else if transfer_index.is_none() && queue_family_properties.queue_flags.contains(QueueFlags::TRANSFER){
+                    transfer_index = Some(i);
+                }
+                if graphic_index.is_some() && transfer_index.is_some(){
+                    return (physical_device.unwrap(),graphic_index.unwrap() as u32,transfer_index.unwrap() as u32);
+                }
+            }
+        }
+        if graphic_index.is_some(){
+            return (physical_device.unwrap(),graphic_index.unwrap() as u32,graphic_index.unwrap() as u32);
+        }
+        panic!("Physical device could not be found with the criteria");
+
     }
 
 
@@ -508,16 +524,19 @@ impl Renderer{
         let instance = Self::create_instance(window,&entry);
         let surface = Self::create_surface(window,&entry,&instance);
         let surface_loader = surface::Instance::new(&entry,&instance);
-        let (physical_device,graphics_family_index) =
-            Self::create_physical_device_and_queue_family_index(&instance,&surface_loader,&surface);
+        let (physical_device,graphics_family_index,transfer_family_index) =
+            Self::create_physical_device_and_queue_family_indices(&instance,&surface_loader,&surface);
         let logical_device =
             Self::create_logical_device(graphics_family_index,&instance,physical_device);
 
         //swap_chain
-        let queue = unsafe{logical_device.get_device_queue(graphics_family_index,0)};
+        let graphics_queue = unsafe{logical_device.get_device_queue(graphics_family_index,0)};
+        let transfer_queue = unsafe{logical_device.get_device_queue(transfer_family_index,0)};
         let queue_families = QueueFamilies{
-            graphics : (graphics_family_index,queue)
+            graphics : (graphics_family_index,graphics_queue),
+            transfer: (transfer_family_index,transfer_queue),
         };
+        dbg!(&queue_families);
         let swap_chain_loader = swapchain::Device::new(&instance,&logical_device);
 
         let (swap_chain,image_format,swap_chain_image_views,swap_chain_extent) =
