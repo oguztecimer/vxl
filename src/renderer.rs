@@ -292,6 +292,23 @@ impl Renderer{
             .expect("Could not create shader module")
     }
 
+    fn find_memory_type_index(
+        physical_device: &PhysicalDevice,
+        instance: &Instance,
+        type_filter: u32,
+        properties: MemoryPropertyFlags
+    ) -> u32 {
+        let physical_device_memory_properties =
+            unsafe{instance.get_physical_device_memory_properties(*physical_device)};
+        for i in 0 .. physical_device_memory_properties.memory_type_count{
+            if ((type_filter & (1<<i)) != 0) &&
+                ((physical_device_memory_properties.memory_types[i as usize].property_flags & properties) == properties)
+            {
+                return i;
+            }
+        }
+        panic!("Could not find a suitable memory type");
+    }
     fn create_buffer(
         logical_device: &Device,
         physical_device: &PhysicalDevice,
@@ -320,21 +337,20 @@ impl Renderer{
             .expect("Could not bind vertex buffer memory");
         (buffer,buffer_memory)
     }
-
     fn create_vertex_buffer(
         logical_device: &Device,
         physical_device: &PhysicalDevice,
         instance: &Instance
     ) -> (Buffer, DeviceMemory){
         let vertices = get_vertices();
-        let size =size_of::<Vertex>() * vertices.len();
+        let buffer_size =size_of::<Vertex>() * vertices.len();
         let (vertex_buffer,vertex_buffer_memory) =
-            Self::create_buffer(logical_device,physical_device,instance,size as DeviceSize);
+            Self::create_buffer(logical_device,physical_device,instance,buffer_size as DeviceSize);
         let data =
             unsafe{logical_device.map_memory(
                 vertex_buffer_memory,
                 0,
-                size as DeviceSize,
+                buffer_size as DeviceSize,
                 MemoryMapFlags::empty()
             )}
             .expect("Could not map memory");
@@ -342,32 +358,12 @@ impl Renderer{
             ptr::copy_nonoverlapping(
                 vertices.as_ptr() as *const std::ffi::c_void,
                 data,
-                size,
+                buffer_size,
             );
         }
         unsafe{logical_device.unmap_memory(vertex_buffer_memory)};
         (vertex_buffer,vertex_buffer_memory)
     }
-
-    fn find_memory_type_index(
-        physical_device: &PhysicalDevice,
-        instance: &Instance,
-        type_filter: u32,
-        properties: MemoryPropertyFlags
-    ) -> u32 {
-        let physical_device_memory_properties =
-            unsafe{instance.get_physical_device_memory_properties(*physical_device)};
-        for i in 0 .. physical_device_memory_properties.memory_type_count{
-            if ((type_filter & (1<<i)) != 0) &&
-                ((physical_device_memory_properties.memory_types[i as usize].property_flags & properties) == properties)
-            {
-                return i;
-            }
-        }
-        panic!("Could not find a suitable memory type");
-    }
-
-
     fn create_frame_buffers(
         swap_chain_image_views:&Vec<ImageView>,
         render_pass: RenderPass,
