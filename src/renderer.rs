@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::ptr;
 use ash::{Device, Entry, Instance, vk};
 use ash::khr::{surface, swapchain};
 use ash::vk::*;
@@ -8,6 +9,40 @@ use winit::window::Window;
 
 const VERT:&[u32] = include_glsl!("shaders/shader.vert");
 const FRAG:&[u32] = include_glsl!("shaders/shader.frag");
+fn get_vertices() -> Vec<Vertex> {
+    vec![Vertex { pos: (0.0, -0.5), color: (1.0, 0.0, 0.0) },
+         Vertex { pos: (0.5, 0.5), color: (0.0, 1.0, 0.0) },
+         Vertex { pos: (-0.5, 0.5), color: (0.0, 0.0, 1.0) }]
+}
+struct Vertex{
+    pos:(f32,f32),
+    color:(f32,f32,f32)
+}
+
+impl Vertex{
+    fn get_binding_descriptions() -> [VertexInputBindingDescription;1] {
+        [VertexInputBindingDescription::default()
+            .binding(0)
+            .stride(size_of::<Vertex>() as u32)
+            .input_rate(VertexInputRate::VERTEX)]
+    }
+
+    fn get_attribute_descriptions() -> [VertexInputAttributeDescription; 2] {
+        [
+            VertexInputAttributeDescription::default()
+                .binding(0)
+                .location(0)
+                .format(Format::R32G32_SFLOAT)
+                .offset(0),
+            VertexInputAttributeDescription::default()
+                .binding(0)
+                .location(1)
+                .format(Format::R32G32B32_SFLOAT)
+                .offset(8)
+        ]
+    }
+}
+
 
 
 pub struct Renderer{
@@ -23,7 +58,9 @@ pub struct Renderer{
     swap_chain_extent: Extent2D,
     render_pass: RenderPass,
     layout: PipelineLayout,
-    graphics_pipeline: vk::Pipeline,
+    graphics_pipeline: Pipeline,
+    vertex_buffer: Buffer,
+    vertex_buffer_memory: DeviceMemory,
     frame_buffers: Vec<Framebuffer>,
     command_pool: CommandPool,
     pub command_buffer: CommandBuffer,
@@ -77,9 +114,11 @@ impl Renderer{
             };
         let display_handle = window.display_handle()
             .expect("Can't get raw display handle").as_raw();
-        let extension_names = ash_window::enumerate_required_extensions(display_handle)
+
+        let mut extension_names = ash_window::enumerate_required_extensions(display_handle)
             .unwrap()
             .to_vec();
+
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         {
             extension_names.push(ash::khr::portability_enumeration::NAME.as_ptr());
@@ -91,7 +130,8 @@ impl Renderer{
             .application_info(&application_info)
             .flags(create_flags)
             .enabled_extension_names(&extension_names);
-        unsafe{entry.create_instance(&create_info,None).expect("Instance creation err")}
+        unsafe{entry.create_instance(&create_info,None)
+            .expect("Instance creation err")}
     }
     fn create_physical_device_and_queue_family_index(
         instance: &Instance,
@@ -252,6 +292,65 @@ impl Renderer{
             .expect("Could not create shader module")
     }
 
+    fn create_vertex_buffer(
+        logical_device: &Device,
+        physical_device: &PhysicalDevice,
+        instance: &Instance
+    ) -> (Buffer, DeviceMemory){
+        let vertices = get_vertices();
+        let buffer_create_info = BufferCreateInfo::default()
+            .size((size_of::<Vertex>() * vertices.len()) as DeviceSize)
+            .usage(BufferUsageFlags::VERTEX_BUFFER)
+            .sharing_mode(SharingMode::EXCLUSIVE);
+        let buffer = unsafe{logical_device.create_buffer(&buffer_create_info,None)}
+            .expect("Could not create vertex buffer");
+
+        let mem_requirements =
+            unsafe{logical_device.get_buffer_memory_requirements(buffer)};
+        let mem_properties =
+            MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT;
+        let memory_type_index =
+            Self::find_memory_type_index(physical_device,instance,mem_requirements.memory_type_bits,mem_properties);
+        let memory_allocate_info = MemoryAllocateInfo::default()
+            .memory_type_index(memory_type_index)
+            .allocation_size(mem_requirements.size);
+        let vertex_buffer_memory = unsafe{logical_device.allocate_memory(&memory_allocate_info,None)}
+            .expect("Could not allocate memory for vertex buffer");
+        unsafe{logical_device.bind_buffer_memory(buffer,vertex_buffer_memory,0)}
+            .expect("Could not bind vertex buffer memory");
+        let data = unsafe{logical_device.map_memory(vertex_buffer_memory,0,buffer_create_info.size,MemoryMapFlags::empty())}
+            .expect("Could not map memory");
+        unsafe {
+            ptr::copy_nonoverlapping(
+                vertices.as_ptr() as *const std::ffi::c_void,
+                data,
+                buffer_create_info.size as usize,
+            );
+        }
+        unsafe{logical_device.unmap_memory(vertex_buffer_memory)};
+        (buffer,vertex_buffer_memory)
+
+    }
+
+    fn find_memory_type_index(
+        physical_device: &PhysicalDevice,
+        instance: &Instance,
+        type_filter: u32,
+        properties: MemoryPropertyFlags
+    ) -> u32 {
+        let physical_device_memory_properties =
+            unsafe{instance.get_physical_device_memory_properties(*physical_device)};
+        for i in 0 .. physical_device_memory_properties.memory_type_count{
+            if ((type_filter & (1<<i)) != 0) &&
+                ((physical_device_memory_properties.memory_types[i as usize].property_flags & properties) == properties)
+            {
+                return i;
+            }
+        }
+        panic!("Could not find a suitable memory type");
+    }
+
+
     fn create_frame_buffers(
         swap_chain_image_views:&Vec<ImageView>,
         render_pass: RenderPass,
@@ -295,6 +394,10 @@ impl Renderer{
         unsafe{self.logical_device.cmd_begin_render_pass(self.command_buffer,&render_pass_begin_info,SubpassContents::INLINE)};
         unsafe{self.logical_device.cmd_bind_pipeline(self.command_buffer,PipelineBindPoint::GRAPHICS,self.graphics_pipeline)};
 
+        let vertex_buffers = &[self.vertex_buffer];
+        let offsets = &[0];
+        unsafe{self.logical_device.cmd_bind_vertex_buffers(self.command_buffer,0,vertex_buffers,offsets)}
+
         let viewport = Viewport::default()
             .x(0.0)
             .y(0.0)
@@ -312,7 +415,7 @@ impl Renderer{
 
         unsafe{self.logical_device.cmd_set_viewport(self.command_buffer,0,&viewports)}
         unsafe{self.logical_device.cmd_set_scissor(self.command_buffer,0,&scissors)}
-        unsafe{self.logical_device.cmd_draw(self.command_buffer,3,1,0,0)}
+        unsafe{self.logical_device.cmd_draw(self.command_buffer,get_vertices().len() as u32,1,0,0)}
         unsafe{self.logical_device.cmd_end_render_pass(self.command_buffer)}
         unsafe{self.logical_device.end_command_buffer(self.command_buffer)}
             .expect("Could not end recording command buffer");
@@ -357,8 +460,12 @@ impl Renderer{
             PipelineDynamicStateCreateInfo::default()
                 .dynamic_states(&dynamic_states);
 
+        let binding_descriptions = Vertex::get_binding_descriptions();
+        let binding_attributes = Vertex::get_attribute_descriptions();
         let vertex_input_create_info =
-            PipelineVertexInputStateCreateInfo::default();
+            PipelineVertexInputStateCreateInfo::default()
+                .vertex_binding_descriptions(&binding_descriptions)
+                .vertex_attribute_descriptions(&binding_attributes);
         let input_assembly_state_create_info =
             PipelineInputAssemblyStateCreateInfo::default()
                 .primitive_restart_enable(false)
@@ -479,6 +586,9 @@ impl Renderer{
             &logical_device
         );
 
+        let (vertex_buffer,vertex_buffer_memory) =
+            Self::create_vertex_buffer(&logical_device,&physical_device,&instance);
+
         let command_pool =
             Self::create_command_pool(&logical_device,queue_families.graphics.0);
 
@@ -508,7 +618,9 @@ impl Renderer{
             frame_buffers,
             command_pool,
             command_buffer,
-            sync_objects
+            sync_objects,
+            vertex_buffer,
+            vertex_buffer_memory
         }
     }
 
@@ -538,6 +650,8 @@ impl Renderer{
         unsafe{self.logical_device().device_wait_idle()}
             .expect("Could not wait device idle");
         self.swap_chain_cleanup();
+        unsafe{self.logical_device.destroy_buffer(self.vertex_buffer,None)};
+        unsafe{self.logical_device.free_memory(self.vertex_buffer_memory,None)};
         unsafe{self.logical_device.destroy_pipeline(self.graphics_pipeline,None)};
         unsafe{self.logical_device.destroy_pipeline_layout(self.layout,None)};
         unsafe{self.logical_device.destroy_render_pass(self.render_pass,None)};
