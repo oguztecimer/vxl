@@ -313,19 +313,20 @@ impl Renderer{
         logical_device: &Device,
         physical_device: &PhysicalDevice,
         instance: &Instance,
-        size: DeviceSize
+        buffer_usage_flags: BufferUsageFlags,
+        memory_property_flags: MemoryPropertyFlags,
+        size: DeviceSize,
     ) -> (Buffer,DeviceMemory){
         //
         let buffer_create_info = BufferCreateInfo::default()
             .size(size)
-            .usage(BufferUsageFlags::VERTEX_BUFFER)
+            .usage(buffer_usage_flags)
             .sharing_mode(SharingMode::EXCLUSIVE);
         let buffer = unsafe{logical_device.create_buffer(&buffer_create_info,None)}
             .expect("Could not create vertex buffer");
         let mem_requirements =
             unsafe{logical_device.get_buffer_memory_requirements(buffer)};
-        let mem_properties =
-            MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT;
+        let mem_properties = memory_property_flags;
         let memory_type_index =
             Self::find_memory_type_index(physical_device,instance,mem_requirements.memory_type_bits,mem_properties);
         let memory_allocate_info = MemoryAllocateInfo::default()
@@ -337,18 +338,61 @@ impl Renderer{
             .expect("Could not bind vertex buffer memory");
         (buffer,buffer_memory)
     }
+
+    fn copy_buffer(
+        logical_device: &Device,
+        command_pool: &CommandPool,
+        src_buffer:Buffer,
+        dst_buffer:Buffer,
+        size:DeviceSize,
+        queue_families: &QueueFamilies
+    ){
+        let command_buffer_allocate_info = CommandBufferAllocateInfo::default()
+            .level(CommandBufferLevel::PRIMARY)
+            .command_pool(*command_pool)
+            .command_buffer_count(1);
+        let command_buffer = unsafe{logical_device.allocate_command_buffers(&command_buffer_allocate_info)}
+            .expect("Could not allocate command buffers")[0];
+        let command_buffer_begin_info = CommandBufferBeginInfo::default()
+            .flags(CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+        unsafe{logical_device.begin_command_buffer(command_buffer,&command_buffer_begin_info)}
+            .expect("Could not begin command buffer");
+        let copy_regions = [BufferCopy{src_offset:0,dst_offset:0,size}];
+        unsafe{logical_device.cmd_copy_buffer(command_buffer,src_buffer,dst_buffer,&copy_regions)}
+        unsafe{logical_device.end_command_buffer(command_buffer)}
+            .expect("Could not end command buffer");
+        let command_buffers = [command_buffer];
+        let submit_info = SubmitInfo::default()
+            .command_buffers(&command_buffers);
+        let submit_infos = [submit_info];
+        unsafe{logical_device.queue_submit(queue_families.graphics.1,&submit_infos,Fence::null())}
+            .expect("Could not submit queue");
+        unsafe{logical_device.queue_wait_idle(queue_families.graphics.1)}
+            .expect("Could not wait for queue idle");
+        unsafe{logical_device.free_command_buffers(*command_pool,&command_buffers)};
+
+    }
     fn create_vertex_buffer(
         logical_device: &Device,
         physical_device: &PhysicalDevice,
-        instance: &Instance
+        instance: &Instance,
+        command_pool: &CommandPool,
+        queue_families: &QueueFamilies
     ) -> (Buffer, DeviceMemory){
         let vertices = get_vertices();
         let buffer_size =size_of::<Vertex>() * vertices.len();
-        let (vertex_buffer,vertex_buffer_memory) =
-            Self::create_buffer(logical_device,physical_device,instance,buffer_size as DeviceSize);
+        let (staging_buffer,staging_buffer_memory) =
+            Self::create_buffer(
+                logical_device,
+                physical_device,
+                instance,
+                BufferUsageFlags::TRANSFER_SRC,
+                MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
+                buffer_size as DeviceSize
+            );
         let data =
             unsafe{logical_device.map_memory(
-                vertex_buffer_memory,
+                staging_buffer_memory,
                 0,
                 buffer_size as DeviceSize,
                 MemoryMapFlags::empty()
@@ -361,7 +405,28 @@ impl Renderer{
                 buffer_size,
             );
         }
-        unsafe{logical_device.unmap_memory(vertex_buffer_memory)};
+        unsafe{logical_device.unmap_memory(staging_buffer_memory)};
+
+        let (vertex_buffer,vertex_buffer_memory) =
+            Self::create_buffer(
+                logical_device,
+                physical_device,
+                instance,
+                BufferUsageFlags::VERTEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
+                MemoryPropertyFlags::DEVICE_LOCAL,
+                buffer_size as DeviceSize
+            );
+
+        Self::copy_buffer(
+            logical_device,
+            command_pool,
+            staging_buffer,
+            vertex_buffer,
+            buffer_size as DeviceSize,
+            queue_families
+        );
+        unsafe{logical_device.destroy_buffer(staging_buffer,None)}
+        unsafe{logical_device.free_memory(staging_buffer_memory,None)}
         (vertex_buffer,vertex_buffer_memory)
     }
     fn create_frame_buffers(
@@ -599,11 +664,11 @@ impl Renderer{
             &logical_device
         );
 
-        let (vertex_buffer,vertex_buffer_memory) =
-            Self::create_vertex_buffer(&logical_device,&physical_device,&instance);
-
         let command_pool =
             Self::create_command_pool(&logical_device,queue_families.graphics.0);
+
+        let (vertex_buffer,vertex_buffer_memory) =
+            Self::create_vertex_buffer(&logical_device,&physical_device,&instance,&command_pool,&queue_families);
 
         let command_buffer_allocate_info =
             CommandBufferAllocateInfo::default()
