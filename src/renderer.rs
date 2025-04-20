@@ -119,7 +119,13 @@ impl Renderer{
         let display_handle = window.display_handle()
             .expect("Can't get raw display handle").as_raw();
 
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
         let mut extension_names = ash_window::enumerate_required_extensions(display_handle)
+            .unwrap()
+            .to_vec();
+
+        #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+        let  extension_names = ash_window::enumerate_required_extensions(display_handle)
             .unwrap()
             .to_vec();
 
@@ -149,7 +155,7 @@ impl Renderer{
         }
 
         let mut graphic_index = None;
-        let mut transfer_index = None;
+        let mut transfer_index;
         let mut physical_device = None;
         for pd in physical_devices{
             graphic_index = None;
@@ -187,19 +193,27 @@ impl Renderer{
 
     fn create_logical_device(
         graphics_queue_family_index:u32,
+        transfer_queue_family_index:u32,
         instance: &Instance,
         physical_device: PhysicalDevice
     ) -> Device{
-        let device_queue_create_info = DeviceQueueCreateInfo::default()
+        let device_queue_create_info_graphic = DeviceQueueCreateInfo::default()
             .queue_priorities(&[1.0])
             .queue_family_index(graphics_queue_family_index);
+
         let device_extension_names_raw = [swapchain::NAME.as_ptr(),
             #[cfg(any(target_os = "macos", target_os = "ios"))]
                 ash::khr::portability_subset::NAME.as_ptr(),
         ];
-        let device_queue_create_info_array = [device_queue_create_info];
+        let mut device_queue_create_info_vec = vec![device_queue_create_info_graphic];
+        if graphics_queue_family_index != transfer_queue_family_index{
+            let device_queue_create_info_transfer = DeviceQueueCreateInfo::default()
+                .queue_priorities(&[1.0])
+                .queue_family_index(transfer_queue_family_index);
+            device_queue_create_info_vec.push(device_queue_create_info_transfer);
+        }
         let create_device_info= DeviceCreateInfo::default()
-            .queue_create_infos(&device_queue_create_info_array)
+            .queue_create_infos(&device_queue_create_info_vec)
             .enabled_extension_names(&device_extension_names_raw);
         unsafe{instance.create_device
         (
@@ -527,7 +541,7 @@ impl Renderer{
         let (physical_device,graphics_family_index,transfer_family_index) =
             Self::create_physical_device_and_queue_family_indices(&instance,&surface_loader,&surface);
         let logical_device =
-            Self::create_logical_device(graphics_family_index,&instance,physical_device);
+            Self::create_logical_device(graphics_family_index,transfer_family_index,&instance,physical_device);
 
         //swap_chain
         let graphics_queue = unsafe{logical_device.get_device_queue(graphics_family_index,0)};
