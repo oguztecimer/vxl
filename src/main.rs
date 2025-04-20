@@ -11,5 +11,3 @@ fn main() {
     event_loop.run_app(&mut app)
         .expect("Could not run event loop");
 }
-
-

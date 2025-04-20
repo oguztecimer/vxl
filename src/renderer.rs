@@ -14,6 +14,8 @@ fn get_vertices() -> Vec<Vertex> {
          Vertex { pos: (0.5, 0.5), color: (0.0, 1.0, 0.0) },
          Vertex { pos: (-0.5, 0.5), color: (0.0, 0.0, 1.0) }]
 }
+
+#[allow(dead_code)]
 struct Vertex{
     pos:(f32,f32),
     color:(f32,f32,f32)
@@ -370,8 +372,8 @@ impl Renderer{
         unsafe{logical_device.queue_wait_idle(queue_families.graphics.1)}
             .expect("Could not wait for queue idle");
         unsafe{logical_device.free_command_buffers(*command_pool,&command_buffers)};
-
     }
+
     fn create_vertex_buffer(
         logical_device: &Device,
         physical_device: &PhysicalDevice,
