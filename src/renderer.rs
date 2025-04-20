@@ -292,19 +292,19 @@ impl Renderer{
             .expect("Could not create shader module")
     }
 
-    fn create_vertex_buffer(
+    fn create_buffer(
         logical_device: &Device,
         physical_device: &PhysicalDevice,
-        instance: &Instance
-    ) -> (Buffer, DeviceMemory){
-        let vertices = get_vertices();
+        instance: &Instance,
+        size: DeviceSize
+    ) -> (Buffer,DeviceMemory){
+        //
         let buffer_create_info = BufferCreateInfo::default()
-            .size((size_of::<Vertex>() * vertices.len()) as DeviceSize)
+            .size(size)
             .usage(BufferUsageFlags::VERTEX_BUFFER)
             .sharing_mode(SharingMode::EXCLUSIVE);
         let buffer = unsafe{logical_device.create_buffer(&buffer_create_info,None)}
             .expect("Could not create vertex buffer");
-
         let mem_requirements =
             unsafe{logical_device.get_buffer_memory_requirements(buffer)};
         let mem_properties =
@@ -314,22 +314,39 @@ impl Renderer{
         let memory_allocate_info = MemoryAllocateInfo::default()
             .memory_type_index(memory_type_index)
             .allocation_size(mem_requirements.size);
-        let vertex_buffer_memory = unsafe{logical_device.allocate_memory(&memory_allocate_info,None)}
+        let buffer_memory = unsafe{logical_device.allocate_memory(&memory_allocate_info,None)}
             .expect("Could not allocate memory for vertex buffer");
-        unsafe{logical_device.bind_buffer_memory(buffer,vertex_buffer_memory,0)}
+        unsafe{logical_device.bind_buffer_memory(buffer,buffer_memory,0)}
             .expect("Could not bind vertex buffer memory");
-        let data = unsafe{logical_device.map_memory(vertex_buffer_memory,0,buffer_create_info.size,MemoryMapFlags::empty())}
+        (buffer,buffer_memory)
+    }
+
+    fn create_vertex_buffer(
+        logical_device: &Device,
+        physical_device: &PhysicalDevice,
+        instance: &Instance
+    ) -> (Buffer, DeviceMemory){
+        let vertices = get_vertices();
+        let size =size_of::<Vertex>() * vertices.len();
+        let (vertex_buffer,vertex_buffer_memory) =
+            Self::create_buffer(logical_device,physical_device,instance,size as DeviceSize);
+        let data =
+            unsafe{logical_device.map_memory(
+                vertex_buffer_memory,
+                0,
+                size as DeviceSize,
+                MemoryMapFlags::empty()
+            )}
             .expect("Could not map memory");
         unsafe {
             ptr::copy_nonoverlapping(
                 vertices.as_ptr() as *const std::ffi::c_void,
                 data,
-                buffer_create_info.size as usize,
+                size,
             );
         }
         unsafe{logical_device.unmap_memory(vertex_buffer_memory)};
-        (buffer,vertex_buffer_memory)
-
+        (vertex_buffer,vertex_buffer_memory)
     }
 
     fn find_memory_type_index(
