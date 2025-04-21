@@ -202,11 +202,11 @@ impl Renderer {
                 {
                     transfer_index = Some(i);
                 }
-                if graphic_index.is_some() && transfer_index.is_some() {
+                if let (Some(graphic_index),Some(transfer_index)) = (graphic_index,transfer_index){
                     return (
                         physical_device.unwrap(),
-                        graphic_index.unwrap() as u32,
-                        transfer_index.unwrap() as u32,
+                        graphic_index as u32,
+                        transfer_index as u32,
                     );
                 }
             }
