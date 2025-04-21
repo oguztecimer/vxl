@@ -73,7 +73,8 @@ pub struct Renderer {
     vertex_buffer: Buffer,
     vertex_buffer_memory: DeviceMemory,
     frame_buffers: Vec<Framebuffer>,
-    command_pool: CommandPool,
+    graphics_command_pool: CommandPool,
+    transfer_command_pool: CommandPool,
     pub command_buffer: CommandBuffer,
     pub sync_objects: SyncObjects,
 }
@@ -364,6 +365,7 @@ impl Renderer {
         }
         panic!("Could not find a suitable memory type");
     }
+    #[allow(clippy::too_many_arguments)]
     fn create_buffer(
         logical_device: &Device,
         physical_device: &PhysicalDevice,
@@ -372,12 +374,21 @@ impl Renderer {
         memory_property_flags: MemoryPropertyFlags,
         size: DeviceSize,
         sharing_mode: SharingMode,
+        concurrent_queue_family_indices: &[u32]
     ) -> (Buffer, DeviceMemory) {
         //
-        let buffer_create_info = BufferCreateInfo::default()
+        let mut buffer_create_info = BufferCreateInfo::default()
             .size(size)
             .usage(buffer_usage_flags)
             .sharing_mode(sharing_mode);
+
+        buffer_create_info = {
+            if sharing_mode == SharingMode::CONCURRENT {
+                buffer_create_info.queue_family_indices(concurrent_queue_family_indices)
+            }else{
+                buffer_create_info
+            }
+        };
         let buffer = unsafe { logical_device.create_buffer(&buffer_create_info, None) }
             .expect("Could not create vertex buffer");
         let mem_requirements = unsafe { logical_device.get_buffer_memory_requirements(buffer) };
@@ -422,20 +433,17 @@ impl Renderer {
             dst_offset: 0,
             size,
         }];
-        unsafe {
-            logical_device.cmd_copy_buffer(command_buffer, src_buffer, dst_buffer, &copy_regions)
-        }
+        unsafe { logical_device.cmd_copy_buffer(command_buffer, src_buffer, dst_buffer, &copy_regions) }
         unsafe { logical_device.end_command_buffer(command_buffer) }
             .expect("Could not end command buffer");
         let command_buffers = [command_buffer];
-        let submit_info = SubmitInfo::default()
-            .command_buffers(&command_buffers);
+        let submit_info = SubmitInfo::default().command_buffers(&command_buffers);
         let submit_infos = [submit_info];
         unsafe {
-            logical_device.queue_submit(queue_families.graphics.1, &submit_infos, Fence::null())
+            logical_device.queue_submit(queue_families.transfer.1, &submit_infos, Fence::null())
         }
         .expect("Could not submit queue");
-        unsafe { logical_device.queue_wait_idle(queue_families.graphics.1) }
+        unsafe { logical_device.queue_wait_idle(queue_families.transfer.1) }
             .expect("Could not wait for queue idle");
         unsafe { logical_device.free_command_buffers(*command_pool, &command_buffers) };
     }
@@ -456,7 +464,8 @@ impl Renderer {
             BufferUsageFlags::TRANSFER_SRC,
             MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
             buffer_size as DeviceSize,
-            SharingMode::EXCLUSIVE
+            SharingMode::EXCLUSIVE,
+            &[]
         );
         let data = unsafe {
             logical_device.map_memory(
@@ -476,6 +485,7 @@ impl Renderer {
         }
         unsafe { logical_device.unmap_memory(staging_buffer_memory) };
 
+        let concurrent_queue_family_indices = [queue_families.graphics.0,queue_families.transfer.0];
         let (vertex_buffer, vertex_buffer_memory) = Self::create_buffer(
             logical_device,
             physical_device,
@@ -483,7 +493,8 @@ impl Renderer {
             BufferUsageFlags::VERTEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
             MemoryPropertyFlags::DEVICE_LOCAL,
             buffer_size as DeviceSize,
-            SharingMode::CONCURRENT
+            SharingMode::CONCURRENT,
+            &concurrent_queue_family_indices
         );
 
         Self::copy_buffer(
@@ -610,9 +621,7 @@ impl Renderer {
         unsafe { self.logical_device.end_command_buffer(self.command_buffer) }
             .expect("Could not end recording command buffer");
     }
-
-    //create_command_buffer
-
+    
     pub fn new(window: &Window) -> Renderer {
         let entry = Entry::linked();
         let instance = Self::create_instance(window, &entry);
@@ -789,18 +798,19 @@ impl Renderer {
             &logical_device,
         );
 
-        let command_pool = Self::create_command_pool(&logical_device, queue_families.graphics.0);
+        let graphics_command_pool = Self::create_command_pool(&logical_device, queue_families.graphics.0);
+        let transfer_command_pool = Self::create_command_pool(&logical_device, queue_families.transfer.0);
 
         let (vertex_buffer, vertex_buffer_memory) = Self::create_vertex_buffer(
             &logical_device,
             &physical_device,
             &instance,
-            &command_pool,
+            &transfer_command_pool,
             &queue_families,
         );
 
         let command_buffer_allocate_info = CommandBufferAllocateInfo::default()
-            .command_pool(command_pool)
+            .command_pool(graphics_command_pool)
             .command_buffer_count(1)
             .level(CommandBufferLevel::PRIMARY);
         let command_buffer =
@@ -823,7 +833,8 @@ impl Renderer {
             render_pass,
             graphics_pipeline,
             frame_buffers,
-            command_pool,
+            graphics_command_pool,
+            transfer_command_pool,
             command_buffer,
             sync_objects,
             vertex_buffer,
@@ -869,31 +880,21 @@ impl Renderer {
     pub fn cleanup(&self) {
         unsafe { self.logical_device().device_wait_idle() }.expect("Could not wait device idle");
         self.swap_chain_cleanup();
-        unsafe { self.logical_device.destroy_buffer(self.vertex_buffer, None) };
-        unsafe {
-            self.logical_device
-                .free_memory(self.vertex_buffer_memory, None)
-        };
-        unsafe {
-            self.logical_device
-                .destroy_pipeline(self.graphics_pipeline, None)
-        };
-        unsafe {
-            self.logical_device
-                .destroy_pipeline_layout(self.layout, None)
-        };
-        unsafe {
-            self.logical_device
-                .destroy_render_pass(self.render_pass, None)
+        unsafe { 
+            self.logical_device.destroy_buffer(self.vertex_buffer, None);
+            self.logical_device.free_memory(self.vertex_buffer_memory, None);
+            self.logical_device.destroy_pipeline(self.graphics_pipeline, None);
+            self.logical_device.destroy_pipeline_layout(self.layout, None);
+            self.logical_device.destroy_render_pass(self.render_pass, None);
         };
         self.sync_objects.cleanup(self.logical_device());
         unsafe {
-            self.logical_device
-                .destroy_command_pool(self.command_pool, None)
+            self.logical_device.destroy_command_pool(self.graphics_command_pool, None);
+            self.logical_device.destroy_command_pool(self.transfer_command_pool, None);
+            self.logical_device.destroy_device(None);
+            self.surface_loader.destroy_surface(self.surface, None);
+            self.instance.destroy_instance(None);
         };
-        unsafe { self.logical_device.destroy_device(None) };
-        unsafe { self.surface_loader.destroy_surface(self.surface, None) };
-        unsafe { self.instance.destroy_instance(None) };
     }
 }
 
