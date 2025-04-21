@@ -371,12 +371,13 @@ impl Renderer {
         buffer_usage_flags: BufferUsageFlags,
         memory_property_flags: MemoryPropertyFlags,
         size: DeviceSize,
+        sharing_mode: SharingMode,
     ) -> (Buffer, DeviceMemory) {
         //
         let buffer_create_info = BufferCreateInfo::default()
             .size(size)
             .usage(buffer_usage_flags)
-            .sharing_mode(SharingMode::EXCLUSIVE);
+            .sharing_mode(sharing_mode);
         let buffer = unsafe { logical_device.create_buffer(&buffer_create_info, None) }
             .expect("Could not create vertex buffer");
         let mem_requirements = unsafe { logical_device.get_buffer_memory_requirements(buffer) };
@@ -427,7 +428,8 @@ impl Renderer {
         unsafe { logical_device.end_command_buffer(command_buffer) }
             .expect("Could not end command buffer");
         let command_buffers = [command_buffer];
-        let submit_info = SubmitInfo::default().command_buffers(&command_buffers);
+        let submit_info = SubmitInfo::default()
+            .command_buffers(&command_buffers);
         let submit_infos = [submit_info];
         unsafe {
             logical_device.queue_submit(queue_families.graphics.1, &submit_infos, Fence::null())
@@ -454,6 +456,7 @@ impl Renderer {
             BufferUsageFlags::TRANSFER_SRC,
             MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
             buffer_size as DeviceSize,
+            SharingMode::EXCLUSIVE
         );
         let data = unsafe {
             logical_device.map_memory(
@@ -480,6 +483,7 @@ impl Renderer {
             BufferUsageFlags::VERTEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
             MemoryPropertyFlags::DEVICE_LOCAL,
             buffer_size as DeviceSize,
+            SharingMode::CONCURRENT
         );
 
         Self::copy_buffer(
