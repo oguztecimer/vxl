@@ -12,18 +12,26 @@ const FRAG: &[u32] = include_glsl!("shaders/shader.frag");
 fn get_vertices() -> Vec<Vertex> {
     vec![
         Vertex {
-            pos: (0.0, -0.5),
+            pos: (-0.5, -0.5),
             color: (1.0, 0.0, 0.0),
         },
         Vertex {
-            pos: (0.5, 0.5),
+            pos: (0.5, -0.5),
             color: (0.0, 1.0, 0.0),
+        },
+        Vertex {
+            pos: (0.5, 0.5),
+            color: (1.0, 0.0, 0.0),
         },
         Vertex {
             pos: (-0.5, 0.5),
             color: (0.0, 0.0, 1.0),
         },
     ]
+}
+
+fn get_indices() -> Vec<u16> {
+    vec![0,1,2,2,3,0]
 }
 
 #[allow(dead_code)]
@@ -72,6 +80,8 @@ pub struct Renderer {
     graphics_pipeline: Pipeline,
     vertex_buffer: Buffer,
     vertex_buffer_memory: DeviceMemory,
+    index_buffer: Buffer,
+    index_buffer_memory: DeviceMemory,
     frame_buffers: Vec<Framebuffer>,
     graphics_command_pool: CommandPool,
     transfer_command_pool: CommandPool,
@@ -509,6 +519,69 @@ impl Renderer {
         unsafe { logical_device.free_memory(staging_buffer_memory, None) }
         (vertex_buffer, vertex_buffer_memory)
     }
+
+    fn create_index_buffer(
+        logical_device: &Device,
+        physical_device: &PhysicalDevice,
+        instance: &Instance,
+        command_pool: &CommandPool,
+        queue_families: &QueueFamilies,
+    ) -> (Buffer, DeviceMemory) {
+        let indices = get_indices();
+        let buffer_size = size_of_val(&indices[0]) * indices.len();
+        dbg!(buffer_size);
+        let (staging_buffer, staging_buffer_memory) = Self::create_buffer(
+            logical_device,
+            physical_device,
+            instance,
+            BufferUsageFlags::TRANSFER_SRC,
+            MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
+            buffer_size as DeviceSize,
+            SharingMode::EXCLUSIVE,
+            &[]
+        );
+        let data = unsafe {
+            logical_device.map_memory(
+                staging_buffer_memory,
+                0,
+                buffer_size as DeviceSize,
+                MemoryMapFlags::empty(),
+            )
+        }
+            .expect("Could not map memory");
+        unsafe {
+            ptr::copy_nonoverlapping(
+                indices.as_ptr() as *const std::ffi::c_void,
+                data,
+                buffer_size,
+            );
+        }
+        unsafe { logical_device.unmap_memory(staging_buffer_memory) };
+
+        let concurrent_queue_family_indices = [queue_families.graphics.0,queue_families.transfer.0];
+        let (vertex_buffer, vertex_buffer_memory) = Self::create_buffer(
+            logical_device,
+            physical_device,
+            instance,
+            BufferUsageFlags::INDEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
+            MemoryPropertyFlags::DEVICE_LOCAL,
+            buffer_size as DeviceSize,
+            SharingMode::CONCURRENT,
+            &concurrent_queue_family_indices
+        );
+
+        Self::copy_buffer(
+            logical_device,
+            command_pool,
+            staging_buffer,
+            vertex_buffer,
+            buffer_size as DeviceSize,
+            queue_families,
+        );
+        unsafe { logical_device.destroy_buffer(staging_buffer, None) }
+        unsafe { logical_device.free_memory(staging_buffer_memory, None) }
+        (vertex_buffer, vertex_buffer_memory)
+    }
     fn create_frame_buffers(
         swap_chain_image_views: &[ImageView],
         render_pass: RenderPass,
@@ -589,6 +662,14 @@ impl Renderer {
                 offsets,
             )
         }
+        unsafe {
+            self.logical_device.cmd_bind_index_buffer(
+                self.command_buffer
+                ,self.index_buffer,
+                0,
+                IndexType::UINT16
+            )
+        }
 
         let viewport = Viewport::default()
             .x(0.0)
@@ -615,7 +696,7 @@ impl Renderer {
         }
         unsafe {
             self.logical_device
-                .cmd_draw(self.command_buffer, get_vertices().len() as u32, 1, 0, 0)
+                .cmd_draw_indexed(self.command_buffer, get_indices().len() as u32, 1, 0, 0,0)
         }
         unsafe { self.logical_device.cmd_end_render_pass(self.command_buffer) }
         unsafe { self.logical_device.end_command_buffer(self.command_buffer) }
@@ -809,6 +890,14 @@ impl Renderer {
             &queue_families,
         );
 
+        let (index_buffer, index_buffer_memory) = Self::create_index_buffer(
+            &logical_device,
+            &physical_device,
+            &instance,
+            &transfer_command_pool,
+            &queue_families,
+        );
+
         let command_buffer_allocate_info = CommandBufferAllocateInfo::default()
             .command_pool(graphics_command_pool)
             .command_buffer_count(1)
@@ -839,6 +928,8 @@ impl Renderer {
             sync_objects,
             vertex_buffer,
             vertex_buffer_memory,
+            index_buffer,
+            index_buffer_memory
         }
     }
 
@@ -883,6 +974,8 @@ impl Renderer {
         unsafe { 
             self.logical_device.destroy_buffer(self.vertex_buffer, None);
             self.logical_device.free_memory(self.vertex_buffer_memory, None);
+            self.logical_device.destroy_buffer(self.index_buffer, None);
+            self.logical_device.free_memory(self.index_buffer_memory, None);
             self.logical_device.destroy_pipeline(self.graphics_pipeline, None);
             self.logical_device.destroy_pipeline_layout(self.layout, None);
             self.logical_device.destroy_render_pass(self.render_pass, None);
