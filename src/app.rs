@@ -163,7 +163,7 @@ impl App {
 
     fn recreate_swap_chain(&mut self) -> bool {
         let size = self.window.as_ref().unwrap().inner_size();
-        if size.width <= 0 || size.height <= 0 {
+        if size.width == 0 || size.height == 0 {
             return false;
         }
         self.renderer_mut().recreate_swap_chain();

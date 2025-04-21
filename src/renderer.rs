@@ -166,7 +166,7 @@ impl Renderer {
     ) -> (PhysicalDevice, u32, u32) {
         let physical_devices =
             unsafe { instance.enumerate_physical_devices() }.expect("Physical device error");
-        if physical_devices.len() == 0 {
+        if physical_devices.is_empty(){
             panic!("failed to find GPUs with Vulkan support!");
         }
 
@@ -178,8 +178,7 @@ impl Renderer {
             transfer_index = None;
             let queue_family_properties_in_all_devices =
                 unsafe { instance.get_physical_device_queue_family_properties(pd) };
-            for i in 0..queue_family_properties_in_all_devices.len() {
-                let queue_family_properties = queue_family_properties_in_all_devices[i];
+            for (i,queue_family_properties) in queue_family_properties_in_all_devices.iter().enumerate() {
 
                 if queue_family_properties
                     .queue_flags
@@ -212,11 +211,11 @@ impl Renderer {
                 }
             }
         }
-        if graphic_index.is_some() {
+        if let Some(index) = graphic_index{
             return (
                 physical_device.unwrap(),
-                graphic_index.unwrap() as u32,
-                graphic_index.unwrap() as u32,
+                index as u32,
+                index as u32,
             );
         }
         panic!("Physical device could not be found with the criteria");
@@ -261,7 +260,7 @@ impl Renderer {
             .expect("Can't get window handle")
             .as_raw();
         unsafe {
-            ash_window::create_surface(&entry, &instance, display_handle, window_handle, None)
+            ash_window::create_surface(entry, instance, display_handle, window_handle, None)
         }
         .expect("Could not create surface")
     }
@@ -496,7 +495,7 @@ impl Renderer {
         (vertex_buffer, vertex_buffer_memory)
     }
     fn create_frame_buffers(
-        swap_chain_image_views: &Vec<ImageView>,
+        swap_chain_image_views: &[ImageView],
         render_pass: RenderPass,
         swap_chain_extent: Extent2D,
         logical_device: &Device,
