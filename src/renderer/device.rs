@@ -6,6 +6,7 @@ pub struct Device{
     pub physical: PhysicalDevice,
     pub logical: ash::Device,
     pub queues: Queues,
+    pub min_buffer_alignment: usize
 }
 
 impl Device{
@@ -81,10 +82,14 @@ impl Device{
             graphics: (selected_graphic_index, graphics_queue),
             transfer: (selected_transfer_index, transfer_queue),
         };
+
+        let limits = unsafe{instance.get_physical_device_properties(physical)}.limits;
+        let min_buffer_alignment = limits.min_memory_map_alignment.max(limits.optimal_buffer_copy_offset_alignment as usize);
         Self{
             physical,
             logical,
-            queues
+            queues,
+            min_buffer_alignment
         }
     }
 

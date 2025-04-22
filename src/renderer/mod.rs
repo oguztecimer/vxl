@@ -63,9 +63,9 @@ impl Renderer {
                 offset: Offset2D { x: 0, y: 0 },
                 extent: self.swapchain.extent,
             });
-        let vertex_buffers = &[self.buffers.vertex_buffer];
-        let offsets = &[0];
-        
+        let buffers = &[self.buffers.combined_buffer];
+        let vertex_offsets = &[0];
+
         unsafe {
             self.device.logical.cmd_begin_render_pass(
                 self.command_buffer,
@@ -80,13 +80,13 @@ impl Renderer {
             self.device.logical.cmd_bind_vertex_buffers(
                 self.command_buffer,
                 0,
-                vertex_buffers,
-                offsets,
+                buffers,
+                vertex_offsets,
             );
             self.device.logical.cmd_bind_index_buffer(
                 self.command_buffer
-                ,self.buffers.index_buffer,
-                0,
+                ,self.buffers.combined_buffer,
+                self.buffers.indices_offset as DeviceSize,
                 IndexType::UINT16
             )
         }

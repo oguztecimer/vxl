@@ -5,10 +5,13 @@ use crate::renderer::device::{Device};
 use crate::renderer::vertex::{get_indices, get_vertices, Vertex};
 
 pub struct Buffers{
-    pub vertex_buffer: Buffer,
-    pub vertex_buffer_memory: DeviceMemory,
-    pub index_buffer: Buffer,
-    pub index_buffer_memory: DeviceMemory
+    pub combined_buffer:Buffer,
+    pub combined_buffer_memory: DeviceMemory,
+    pub indices_offset:usize
+    // pub vertex_buffer: Buffer,
+    // pub vertex_buffer_memory: DeviceMemory,
+    // pub index_buffer: Buffer,
+    // pub index_buffer_memory: DeviceMemory
 }
 
 impl Buffers {
@@ -18,32 +21,35 @@ impl Buffers {
         transfer_command_pool: &CommandPool
 
     ) -> Self{
-        let (vertex_buffer, vertex_buffer_memory) = Self::create_vertex_buffer(
+        let (combined_buffer,combined_buffer_memory,indices_offset) = Self::create_combined_buffer(
             device,
             instance,
-            transfer_command_pool,
-        );
-
-        let (index_buffer, index_buffer_memory) = Self::create_index_buffer(
-            device,
-            instance,
-            transfer_command_pool,
+            transfer_command_pool
         );
         Self{
-            vertex_buffer,
-            vertex_buffer_memory,
-            index_buffer,
-            index_buffer_memory
+            combined_buffer,
+            combined_buffer_memory,
+            indices_offset
         }
     }
 
-    fn create_vertex_buffer(
+    fn create_combined_buffer(
         device: &Device,
         instance: &Instance,
         command_pool: &CommandPool
-    ) -> (Buffer, DeviceMemory) {
+    ) -> (Buffer, DeviceMemory,usize) {
+        //vertices
         let vertices = get_vertices();
-        let buffer_size = size_of::<Vertex>() * vertices.len();
+        let vertices_size = size_of::<Vertex>() * vertices.len();
+        let buffer_size = vertices_size;
+        let aligned_buffer_size = (buffer_size + device.min_buffer_alignment -1) & !(device.min_buffer_alignment-1);
+
+        let indices = get_indices();
+        let index_size = size_of_val(&indices[0]);
+        let indices_size =  index_size * indices.len();
+        let buffer_size = aligned_buffer_size + indices_size;
+
+
         let (staging_buffer, staging_buffer_memory) = Self::create_buffer(
             device,
             instance,
@@ -53,6 +59,7 @@ impl Buffers {
             SharingMode::EXCLUSIVE,
             &[]
         );
+
         let data = unsafe {
             device.logical.map_memory(
                 staging_buffer_memory,
@@ -66,92 +73,44 @@ impl Buffers {
             ptr::copy_nonoverlapping(
                 vertices.as_ptr() as *const std::ffi::c_void,
                 data,
-                buffer_size,
+                vertices_size,
             );
         }
-        unsafe { device.logical.unmap_memory(staging_buffer_memory) };
-
-        let concurrent_queue_family_indices = [device.queues.graphics.0,device.queues.transfer.0];
-        let (vertex_buffer, vertex_buffer_memory) = Self::create_buffer(
-            device,
-            instance,
-            BufferUsageFlags::VERTEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
-            MemoryPropertyFlags::DEVICE_LOCAL,
-            buffer_size as DeviceSize,
-            SharingMode::CONCURRENT,
-            &concurrent_queue_family_indices
-        );
-
-        Self::copy_buffer(
-            device,
-            command_pool,
-            staging_buffer,
-            vertex_buffer,
-            buffer_size as DeviceSize
-        );
-        unsafe { device.logical.destroy_buffer(staging_buffer, None) }
-        unsafe { device.logical.free_memory(staging_buffer_memory, None) }
-        (vertex_buffer, vertex_buffer_memory)
-    }
-
-    fn create_index_buffer(
-        device: &Device,
-        instance: &Instance,
-        command_pool: &CommandPool
-    ) -> (Buffer, DeviceMemory) {
-        let indices = get_indices();
-        let buffer_size = size_of_val(&indices[0]) * indices.len();
-        let (staging_buffer, staging_buffer_memory) = Self::create_buffer(
-            device,
-            instance,
-            BufferUsageFlags::TRANSFER_SRC,
-            MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
-            buffer_size as DeviceSize,
-            SharingMode::EXCLUSIVE,
-            &[]
-        );
-        let data = unsafe {
-            device.logical.map_memory(
-                staging_buffer_memory,
-                0,
-                buffer_size as DeviceSize,
-                MemoryMapFlags::empty(),
-            )
-        }
-            .expect("Could not map memory");
+        let data = unsafe{data.add(aligned_buffer_size)};
         unsafe {
             ptr::copy_nonoverlapping(
                 indices.as_ptr() as *const std::ffi::c_void,
                 data,
-                buffer_size,
+                indices_size,
             );
         }
-        unsafe { device.logical.unmap_memory(staging_buffer_memory) };
 
+        unsafe { device.logical.unmap_memory(staging_buffer_memory) };
         let concurrent_queue_family_indices = [device.queues.graphics.0,device.queues.transfer.0];
-        let (vertex_buffer, vertex_buffer_memory) = Self::create_buffer(
+        let (buffer, buffer_memory) = Self::create_buffer(
             device,
             instance,
-            BufferUsageFlags::INDEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
+            BufferUsageFlags::VERTEX_BUFFER | BufferUsageFlags::INDEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
             MemoryPropertyFlags::DEVICE_LOCAL,
             buffer_size as DeviceSize,
             SharingMode::CONCURRENT,
             &concurrent_queue_family_indices
         );
 
+
         Self::copy_buffer(
             device,
             command_pool,
             staging_buffer,
-            vertex_buffer,
-            buffer_size as DeviceSize,
+            buffer,
+            buffer_size as DeviceSize
         );
         unsafe { device.logical.destroy_buffer(staging_buffer, None) }
         unsafe { device.logical.free_memory(staging_buffer_memory, None) }
-        (vertex_buffer, vertex_buffer_memory)
+        (buffer, buffer_memory,aligned_buffer_size)
+
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn create_buffer(
         device: &Device,
         instance: &Instance,
@@ -254,10 +213,12 @@ impl Buffers {
     
     pub fn cleanup(&self, logical_device: &ash::Device) {
         unsafe {
-            logical_device.destroy_buffer(self.vertex_buffer, None);
-            logical_device.free_memory(self.vertex_buffer_memory, None);
-            logical_device.destroy_buffer(self.index_buffer, None);
-            logical_device.free_memory(self.index_buffer_memory, None);
+            logical_device.destroy_buffer(self.combined_buffer, None);
+            logical_device.free_memory(self.combined_buffer_memory, None);
+            // logical_device.destroy_buffer(self.vertex_buffer, None);
+            // logical_device.free_memory(self.vertex_buffer_memory, None);
+            // logical_device.destroy_buffer(self.index_buffer, None);
+            // logical_device.free_memory(self.index_buffer_memory, None);
         }
     }
 }
