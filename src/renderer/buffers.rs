@@ -21,16 +21,16 @@ impl Buffers {
         let (vertex_buffer, vertex_buffer_memory) = Self::create_vertex_buffer(
             &device.logical,
             &device.physical,
-            &instance,
-            &transfer_command_pool,
+            instance,
+            transfer_command_pool,
             &device.queues,
         );
 
         let (index_buffer, index_buffer_memory) = Self::create_index_buffer(
             &device.logical,
             &device.physical,
-            &instance,
-            &transfer_command_pool,
+            instance,
+            transfer_command_pool,
             &device.queues,
         );
         Self{

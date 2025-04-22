@@ -32,9 +32,9 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => {
                 self.close_requested = true;
-                unsafe { self.renderer().device.logical.device_wait_idle() }
+                unsafe { self.renderer().device.logical.device_wait_idle()
                     .expect("Could not wait for device idle");
-                unsafe {
+                    
                     self.renderer().device.logical.reset_command_buffer(
                         self.renderer().command_buffer,
                         CommandBufferResetFlags::default(),
@@ -62,7 +62,7 @@ impl App {
         self.renderer.as_ref().unwrap()
     }
     fn window(&self) -> &Window { self.window.as_ref().unwrap() }
-    
+
     fn draw_frame(&mut self) {
         if self.close_requested {
             return;

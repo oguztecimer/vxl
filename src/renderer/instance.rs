@@ -7,7 +7,6 @@ pub struct Instance{
     pub handle: ash::Instance
 }
 impl Instance{
-    pub fn cleanup(&self){ unsafe{self.handle.destroy_instance(None);} }
     pub fn new(window: &Window, entry: &Entry) -> Instance {
         let application_info = ApplicationInfo::default().api_version(API_VERSION_1_3);
 
@@ -50,6 +49,6 @@ impl Instance{
             }
         }
     }
-    
+    pub fn cleanup(&self){ unsafe{self.handle.destroy_instance(None);} }
 }
 

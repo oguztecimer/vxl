@@ -9,7 +9,6 @@ pub struct Surface{
 }
 
 impl Surface{
-    pub fn cleanup(&self){ unsafe{self.loader.destroy_surface(self.handle, None)}; }
     pub fn new(window: &Window, entry: &Entry, instance: &Instance) -> Surface {
         let display_handle = window
             .display_handle()
@@ -27,4 +26,5 @@ impl Surface{
             loader: ash::khr::surface::Instance::new(entry, instance)
         }
     }
+    pub fn cleanup(&self){ unsafe{self.loader.destroy_surface(self.handle, None)}; }
 }

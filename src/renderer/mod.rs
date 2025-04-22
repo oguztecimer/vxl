@@ -50,17 +50,11 @@ impl Renderer {
 
     pub fn record_command_buffer(&self, image_index: usize) {
         let command_buffer_begin_info = CommandBufferBeginInfo::default();
-        unsafe {
-            self.device.logical
-                .begin_command_buffer(self.command_buffer, &command_buffer_begin_info)
-        }
+        unsafe { self.device.logical.begin_command_buffer(self.command_buffer, &command_buffer_begin_info) }
             .expect("Could not begin recording the command buffer");
 
-        let clear_values = [ClearValue {
-            color: ClearColorValue {
-                float32: [0.1, 0.1, 0.1, 1.0],
-            },
-        }];
+        let clear_values = 
+            [ClearValue { color: ClearColorValue { float32: [0.1, 0.1, 0.1, 1.0], } }];
         let render_pass_begin_info = RenderPassBeginInfo::default()
             .render_pass(self.pipeline.render_pass)
             .clear_values(&clear_values)
@@ -69,33 +63,26 @@ impl Renderer {
                 offset: Offset2D { x: 0, y: 0 },
                 extent: self.swapchain.extent,
             });
-
+        let vertex_buffers = &[self.buffers.vertex_buffer];
+        let offsets = &[0];
+        
         unsafe {
             self.device.logical.cmd_begin_render_pass(
                 self.command_buffer,
                 &render_pass_begin_info,
                 SubpassContents::INLINE,
-            )
-        };
-        unsafe {
+            );
             self.device.logical.cmd_bind_pipeline(
                 self.command_buffer,
                 PipelineBindPoint::GRAPHICS,
                 self.pipeline.handle,
-            )
-        };
-
-        let vertex_buffers = &[self.buffers.vertex_buffer];
-        let offsets = &[0];
-        unsafe {
+            );
             self.device.logical.cmd_bind_vertex_buffers(
                 self.command_buffer,
                 0,
                 vertex_buffers,
                 offsets,
-            )
-        }
-        unsafe {
+            );
             self.device.logical.cmd_bind_index_buffer(
                 self.command_buffer
                 ,self.buffers.index_buffer,
@@ -126,20 +113,23 @@ impl Renderer {
             self.device.logical.cmd_end_render_pass(self.command_buffer);
             self.device.logical.end_command_buffer(self.command_buffer).expect("Could not end recording command buffer");
         }
-
     }
     
     pub fn recreate_swap_chain(&mut self) {
-        unsafe { self.device.logical.device_wait_idle() }.expect("Could not wait device idle");
-        unsafe{ for fb in &self.frame_buffers { self.device.logical.destroy_framebuffer(*fb, None) }}
+        unsafe { 
+            self.device.logical.device_wait_idle().expect("Could not wait device idle");
+            for fb in &self.frame_buffers { self.device.logical.destroy_framebuffer(*fb, None) }
+        }
         self.swapchain.cleanup(&self.device.logical);
         self.swapchain = Swapchain::new(&self.instance.handle,&self.device,&self.surface);
         self.frame_buffers = frame_buffers::create_frame_buffers(&self.swapchain, self.pipeline.render_pass, &self.device.logical);
     }
 
     pub fn cleanup(&self) {
-        unsafe { self.device.logical.device_wait_idle() }.expect("Could not wait device idle");
-        unsafe{ for fb in &self.frame_buffers { self.device.logical.destroy_framebuffer(*fb, None) }}
+        unsafe { 
+            self.device.logical.device_wait_idle().expect("Could not wait device idle");
+            for fb in &self.frame_buffers { self.device.logical.destroy_framebuffer(*fb, None) }
+        }
         self.swapchain.cleanup(&self.device.logical);
         self.buffers.cleanup(&self.device.logical);
         self.pipeline.cleanup(&self.device.logical);

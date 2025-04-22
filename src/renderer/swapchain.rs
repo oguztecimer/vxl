@@ -16,7 +16,7 @@ impl Swapchain{
         device: &Device,
         surface: &Surface
     ) -> Self {
-        let loader = ash::khr::swapchain::Device::new(&instance, &device.logical);
+        let loader = ash::khr::swapchain::Device::new(instance, &device.logical);
         let surface_present_modes = unsafe {
             surface.loader.get_physical_device_surface_present_modes(device.physical, surface.handle)
         }
