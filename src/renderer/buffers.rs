@@ -8,10 +8,6 @@ pub struct Buffers{
     pub combined_buffer:Buffer,
     pub combined_buffer_memory: DeviceMemory,
     pub indices_offset:usize
-    // pub vertex_buffer: Buffer,
-    // pub vertex_buffer_memory: DeviceMemory,
-    // pub index_buffer: Buffer,
-    // pub index_buffer_memory: DeviceMemory
 }
 
 impl Buffers {
@@ -215,10 +211,6 @@ impl Buffers {
         unsafe {
             logical_device.destroy_buffer(self.combined_buffer, None);
             logical_device.free_memory(self.combined_buffer_memory, None);
-            // logical_device.destroy_buffer(self.vertex_buffer, None);
-            // logical_device.free_memory(self.vertex_buffer_memory, None);
-            // logical_device.destroy_buffer(self.index_buffer, None);
-            // logical_device.free_memory(self.index_buffer_memory, None);
         }
     }
 }
