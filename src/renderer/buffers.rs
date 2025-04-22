@@ -41,7 +41,7 @@ impl Buffers {
         let aligned_buffer_size = (buffer_size + device.min_buffer_alignment -1) & !(device.min_buffer_alignment-1);
 
         let indices = get_indices();
-        let index_size = size_of_val(&indices[0]);
+        let index_size = size_of::<u16>();
         let indices_size =  index_size * indices.len();
         let buffer_size = aligned_buffer_size + indices_size;
 
@@ -72,7 +72,7 @@ impl Buffers {
                 vertices_size,
             );
         }
-        let data = unsafe{data.add(aligned_buffer_size)};
+        let data = unsafe{(data as *mut u8).add(aligned_buffer_size) as *mut std::ffi::c_void};
         unsafe {
             ptr::copy_nonoverlapping(
                 indices.as_ptr() as *const std::ffi::c_void,
