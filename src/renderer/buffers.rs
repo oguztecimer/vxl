@@ -1,7 +1,7 @@
 use std::ptr;
 use ash::Instance;
 use ash::vk::*;
-use crate::renderer::device::{Device, Queues};
+use crate::renderer::device::{Device};
 use crate::renderer::vertex::{get_indices, get_vertices, Vertex};
 
 pub struct Buffers{
@@ -19,19 +19,15 @@ impl Buffers {
 
     ) -> Self{
         let (vertex_buffer, vertex_buffer_memory) = Self::create_vertex_buffer(
-            &device.logical,
-            &device.physical,
+            device,
             instance,
             transfer_command_pool,
-            &device.queues,
         );
 
         let (index_buffer, index_buffer_memory) = Self::create_index_buffer(
-            &device.logical,
-            &device.physical,
+            device,
             instance,
             transfer_command_pool,
-            &device.queues,
         );
         Self{
             vertex_buffer,
@@ -42,17 +38,14 @@ impl Buffers {
     }
 
     fn create_vertex_buffer(
-        logical_device: &ash::Device,
-        physical_device: &PhysicalDevice,
+        device: &Device,
         instance: &Instance,
-        command_pool: &CommandPool,
-        queues: &Queues,
+        command_pool: &CommandPool
     ) -> (Buffer, DeviceMemory) {
         let vertices = get_vertices();
         let buffer_size = size_of::<Vertex>() * vertices.len();
         let (staging_buffer, staging_buffer_memory) = Self::create_buffer(
-            logical_device,
-            physical_device,
+            device,
             instance,
             BufferUsageFlags::TRANSFER_SRC,
             MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
@@ -61,7 +54,7 @@ impl Buffers {
             &[]
         );
         let data = unsafe {
-            logical_device.map_memory(
+            device.logical.map_memory(
                 staging_buffer_memory,
                 0,
                 buffer_size as DeviceSize,
@@ -76,12 +69,11 @@ impl Buffers {
                 buffer_size,
             );
         }
-        unsafe { logical_device.unmap_memory(staging_buffer_memory) };
+        unsafe { device.logical.unmap_memory(staging_buffer_memory) };
 
-        let concurrent_queue_family_indices = [queues.graphics.0,queues.transfer.0];
+        let concurrent_queue_family_indices = [device.queues.graphics.0,device.queues.transfer.0];
         let (vertex_buffer, vertex_buffer_memory) = Self::create_buffer(
-            logical_device,
-            physical_device,
+            device,
             instance,
             BufferUsageFlags::VERTEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
             MemoryPropertyFlags::DEVICE_LOCAL,
@@ -91,30 +83,26 @@ impl Buffers {
         );
 
         Self::copy_buffer(
-            logical_device,
+            device,
             command_pool,
             staging_buffer,
             vertex_buffer,
-            buffer_size as DeviceSize,
-            queues,
+            buffer_size as DeviceSize
         );
-        unsafe { logical_device.destroy_buffer(staging_buffer, None) }
-        unsafe { logical_device.free_memory(staging_buffer_memory, None) }
+        unsafe { device.logical.destroy_buffer(staging_buffer, None) }
+        unsafe { device.logical.free_memory(staging_buffer_memory, None) }
         (vertex_buffer, vertex_buffer_memory)
     }
 
     fn create_index_buffer(
-        logical_device: &ash::Device,
-        physical_device: &PhysicalDevice,
+        device: &Device,
         instance: &Instance,
-        command_pool: &CommandPool,
-        queues: &Queues,
+        command_pool: &CommandPool
     ) -> (Buffer, DeviceMemory) {
         let indices = get_indices();
         let buffer_size = size_of_val(&indices[0]) * indices.len();
         let (staging_buffer, staging_buffer_memory) = Self::create_buffer(
-            logical_device,
-            physical_device,
+            device,
             instance,
             BufferUsageFlags::TRANSFER_SRC,
             MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
@@ -123,7 +111,7 @@ impl Buffers {
             &[]
         );
         let data = unsafe {
-            logical_device.map_memory(
+            device.logical.map_memory(
                 staging_buffer_memory,
                 0,
                 buffer_size as DeviceSize,
@@ -138,12 +126,11 @@ impl Buffers {
                 buffer_size,
             );
         }
-        unsafe { logical_device.unmap_memory(staging_buffer_memory) };
+        unsafe { device.logical.unmap_memory(staging_buffer_memory) };
 
-        let concurrent_queue_family_indices = [queues.graphics.0,queues.transfer.0];
+        let concurrent_queue_family_indices = [device.queues.graphics.0,device.queues.transfer.0];
         let (vertex_buffer, vertex_buffer_memory) = Self::create_buffer(
-            logical_device,
-            physical_device,
+            device,
             instance,
             BufferUsageFlags::INDEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
             MemoryPropertyFlags::DEVICE_LOCAL,
@@ -153,22 +140,20 @@ impl Buffers {
         );
 
         Self::copy_buffer(
-            logical_device,
+            device,
             command_pool,
             staging_buffer,
             vertex_buffer,
             buffer_size as DeviceSize,
-            queues,
         );
-        unsafe { logical_device.destroy_buffer(staging_buffer, None) }
-        unsafe { logical_device.free_memory(staging_buffer_memory, None) }
+        unsafe { device.logical.destroy_buffer(staging_buffer, None) }
+        unsafe { device.logical.free_memory(staging_buffer_memory, None) }
         (vertex_buffer, vertex_buffer_memory)
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn create_buffer(
-        logical_device: &ash::Device,
-        physical_device: &PhysicalDevice,
+        device: &Device,
         instance: &Instance,
         buffer_usage_flags: BufferUsageFlags,
         memory_property_flags: MemoryPropertyFlags,
@@ -189,12 +174,12 @@ impl Buffers {
                 buffer_create_info
             }
         };
-        let buffer = unsafe { logical_device.create_buffer(&buffer_create_info, None) }
+        let buffer = unsafe { device.logical.create_buffer(&buffer_create_info, None) }
             .expect("Could not create vertex buffer");
-        let mem_requirements = unsafe { logical_device.get_buffer_memory_requirements(buffer) };
+        let mem_requirements = unsafe { device.logical.get_buffer_memory_requirements(buffer) };
         let mem_properties = memory_property_flags;
         let memory_type_index = Self::find_memory_type_index(
-            physical_device,
+            &device.physical,
             instance,
             mem_requirements.memory_type_bits,
             mem_properties,
@@ -202,50 +187,49 @@ impl Buffers {
         let memory_allocate_info = MemoryAllocateInfo::default()
             .memory_type_index(memory_type_index)
             .allocation_size(mem_requirements.size);
-        let buffer_memory = unsafe { logical_device.allocate_memory(&memory_allocate_info, None) }
+        let buffer_memory = unsafe { device.logical.allocate_memory(&memory_allocate_info, None) }
             .expect("Could not allocate memory for vertex buffer");
-        unsafe { logical_device.bind_buffer_memory(buffer, buffer_memory, 0) }
+        unsafe { device.logical.bind_buffer_memory(buffer, buffer_memory, 0) }
             .expect("Could not bind vertex buffer memory");
         (buffer, buffer_memory)
     }
 
     fn copy_buffer(
-        logical_device: &ash::Device,
+        device: &Device,
         command_pool: &CommandPool,
         src_buffer: Buffer,
         dst_buffer: Buffer,
-        size: DeviceSize,
-        queues: &Queues,
+        size: DeviceSize
     ) {
         let command_buffer_allocate_info = CommandBufferAllocateInfo::default()
             .level(CommandBufferLevel::PRIMARY)
             .command_pool(*command_pool)
             .command_buffer_count(1);
         let command_buffer =
-            unsafe { logical_device.allocate_command_buffers(&command_buffer_allocate_info) }
+            unsafe { device.logical.allocate_command_buffers(&command_buffer_allocate_info) }
                 .expect("Could not allocate command buffers")[0];
         let command_buffer_begin_info =
             CommandBufferBeginInfo::default().flags(CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-        unsafe { logical_device.begin_command_buffer(command_buffer, &command_buffer_begin_info) }
+        unsafe { device.logical.begin_command_buffer(command_buffer, &command_buffer_begin_info) }
             .expect("Could not begin command buffer");
         let copy_regions = [BufferCopy {
             src_offset: 0,
             dst_offset: 0,
             size,
         }];
-        unsafe { logical_device.cmd_copy_buffer(command_buffer, src_buffer, dst_buffer, &copy_regions) }
-        unsafe { logical_device.end_command_buffer(command_buffer) }
+        unsafe { device.logical.cmd_copy_buffer(command_buffer, src_buffer, dst_buffer, &copy_regions) }
+        unsafe { device.logical.end_command_buffer(command_buffer) }
             .expect("Could not end command buffer");
         let command_buffers = [command_buffer];
         let submit_info = SubmitInfo::default().command_buffers(&command_buffers);
         let submit_infos = [submit_info];
         unsafe {
-            logical_device.queue_submit(queues.transfer.1, &submit_infos, Fence::null())
+            device.logical.queue_submit(device.queues.transfer.1, &submit_infos, Fence::null())
         }
             .expect("Could not submit queue");
-        unsafe { logical_device.queue_wait_idle(queues.transfer.1) }
+        unsafe { device.logical.queue_wait_idle(device.queues.transfer.1) }
             .expect("Could not wait for queue idle");
-        unsafe { logical_device.free_command_buffers(*command_pool, &command_buffers) };
+        unsafe { device.logical.free_command_buffers(*command_pool, &command_buffers) };
     }
 
     fn find_memory_type_index(
