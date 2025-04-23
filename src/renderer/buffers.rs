@@ -45,7 +45,6 @@ impl Buffers {
         let indices_size =  index_size * indices.len();
         let buffer_size = aligned_buffer_size + indices_size;
 
-
         let (staging_buffer, staging_buffer_memory) = Self::create_buffer(
             device,
             instance,
@@ -82,17 +81,23 @@ impl Buffers {
         }
 
         unsafe { device.logical.unmap_memory(staging_buffer_memory) };
-        let concurrent_queue_family_indices = [device.queues.graphics.0,device.queues.transfer.0];
+        let same_queues = device.queues.graphics.0 == device.queues.transfer.0;
+        let (sharing_mode,concurrent_queue_family_indices) : (SharingMode,&[u32]) =
+            if !same_queues {
+                (SharingMode::CONCURRENT,&[device.queues.graphics.0,device.queues.transfer.0])
+            }
+            else{
+                (SharingMode::EXCLUSIVE,&[])
+            };
         let (buffer, buffer_memory) = Self::create_buffer(
             device,
             instance,
             BufferUsageFlags::VERTEX_BUFFER | BufferUsageFlags::INDEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
             MemoryPropertyFlags::DEVICE_LOCAL,
             buffer_size as DeviceSize,
-            SharingMode::CONCURRENT,
-            &concurrent_queue_family_indices
+            sharing_mode,
+            concurrent_queue_family_indices
         );
-
 
         Self::copy_buffer(
             device,
@@ -182,6 +187,7 @@ impl Buffers {
             device.logical.queue_submit(device.queues.transfer.1, &submit_infos, Fence::null())
         }
             .expect("Could not submit queue");
+        //todo: Improve parallelization: use fences
         unsafe { device.logical.queue_wait_idle(device.queues.transfer.1) }
             .expect("Could not wait for queue idle");
         unsafe { device.logical.free_command_buffers(*command_pool, &command_buffers) };
