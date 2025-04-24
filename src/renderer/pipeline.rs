@@ -1,6 +1,7 @@
 use std::ffi::CString;
 use ash::vk::{AccessFlags, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ColorComponentFlags, CullModeFlags, DynamicState, FrontFace, GraphicsPipelineCreateInfo, ImageLayout, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineStageFlags, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, RenderPass, RenderPassCreateInfo, SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL};
 use vk_shader_macros::include_glsl;
+use crate::renderer::descriptor::Descriptor;
 use crate::renderer::device::Device;
 use crate::renderer::swapchain::Swapchain;
 use crate::renderer::vertex::Vertex;
@@ -13,13 +14,14 @@ const FRAG: &[u32] = include_glsl!("resources/shaders/shader.frag");
 pub struct Pipeline{
     pub handle: ash::vk::Pipeline,
     pub layout: PipelineLayout,
-    pub render_pass: RenderPass
+    pub render_pass: RenderPass,
 }
 
 impl Pipeline{
     pub fn new(
         device: &Device,
         swapchain: &Swapchain,
+        descriptor: &Descriptor
     ) -> Self{
         let vert_module = Self::create_shader_module(device, VERT);
         let frag_module = Self::create_shader_module(device, FRAG);
@@ -75,7 +77,9 @@ impl Pipeline{
             .logic_op_enable(false)
             .attachments(&attachments);
 
-        let pipeline_layout_create_info = PipelineLayoutCreateInfo::default();
+        let descriptor_set_layouts = &[descriptor.layout];
+        let pipeline_layout_create_info = PipelineLayoutCreateInfo::default()
+            .set_layouts(descriptor_set_layouts);
 
         let layout =
             unsafe { device.logical.create_pipeline_layout(&pipeline_layout_create_info, None) }
@@ -122,9 +126,7 @@ impl Pipeline{
                 .create_render_pass(&render_pass_create_info, None)
                 .expect("Could not create render pass")
         };
-
-        //Pipeline
-
+        //
         let graphics_pipeline_create_info = GraphicsPipelineCreateInfo::default()
             .stages(&stages)
             .vertex_input_state(&vertex_input_create_info)

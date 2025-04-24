@@ -1,13 +1,27 @@
+use std::ffi::c_void;
 use std::ptr;
+use std::time::Instant;
 use ash::Instance;
 use ash::vk::*;
+use glam::{Mat4};
 use crate::renderer::device::{Device};
 use crate::renderer::vertex::{get_indices, get_vertices, Vertex};
 
+pub const UNIFORM_BUFFER_COUNT : u8 = 3;
+#[allow(dead_code)]
+pub struct UniformBufferObject{
+    model: Mat4,
+    view: Mat4,
+    proj: Mat4,
+}
 pub struct Buffers{
+    pub start_time:Instant,
     pub combined_buffer:Buffer,
     pub combined_buffer_memory: DeviceMemory,
-    pub indices_offset:usize
+    pub combined_buffer_indices_offset:usize,
+    pub uniform_buffers:Vec<Buffer>,
+    pub uniform_buffers_memory:Vec<DeviceMemory>,
+    pub uniform_buffers_mapped:Vec<*mut c_void>
 }
 
 impl Buffers {
@@ -17,18 +31,67 @@ impl Buffers {
         transfer_command_pool: &CommandPool
 
     ) -> Self{
-        let (combined_buffer,combined_buffer_memory,indices_offset) = Self::create_combined_buffer(
+        let start_time = Instant::now();
+        let (combined_buffer,combined_buffer_memory,combined_buffer_indices_offset) = Self::create_combined_buffer(
             device,
             instance,
             transfer_command_pool
         );
+        let buffer_size = size_of::<UniformBufferObject>() as DeviceSize;
+        let mut uniform_buffers:Vec<Buffer> = Vec::from([]);
+        let mut uniform_buffers_memory:Vec<DeviceMemory> = Vec::from([]);
+        let mut uniform_buffers_mapped:Vec<*mut c_void> = Vec::from([]);
+
+        for _ in 0 .. UNIFORM_BUFFER_COUNT{
+            let (buffer,memory) = Self::create_buffer(
+                device,
+                instance,
+                BufferUsageFlags::UNIFORM_BUFFER,
+                MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
+                buffer_size,
+                SharingMode::EXCLUSIVE,
+                &[]
+            );
+            let data = unsafe {
+                device.logical.map_memory(
+                    memory,
+                    0,
+                    buffer_size as DeviceSize,
+                    MemoryMapFlags::empty(),
+                )
+            }.expect("Could not map memory");
+            uniform_buffers.push(buffer);
+            uniform_buffers_memory.push(memory);
+            uniform_buffers_mapped.push(data);
+        }
+
         Self{
+            start_time,
             combined_buffer,
             combined_buffer_memory,
-            indices_offset
+            combined_buffer_indices_offset,
+            uniform_buffers,
+            uniform_buffers_memory,
+            uniform_buffers_mapped
         }
     }
 
+    pub fn update_uniform_buffer(&self, image_index: u32){
+        let current_time = Instant::now();
+        let elapsed = current_time.duration_since(self.start_time).as_secs_f32();
+        let model =Mat4::from_rotation_z(elapsed * 90.0_f32.to_radians()) * Mat4::IDENTITY;
+        let view = Mat4::IDENTITY;
+        let proj = Mat4::IDENTITY;
+        let ubo = UniformBufferObject{ model,view,proj };
+        unsafe {
+            ptr::copy_nonoverlapping(
+                &ubo as *const UniformBufferObject as *const c_void,
+                self.uniform_buffers_mapped[image_index as usize],
+                size_of_val(&ubo),
+            );
+        }
+
+    }
     fn create_combined_buffer(
         device: &Device,
         instance: &Instance,
@@ -217,6 +280,12 @@ impl Buffers {
         unsafe {
             logical_device.destroy_buffer(self.combined_buffer, None);
             logical_device.free_memory(self.combined_buffer_memory, None);
+            for buffer in &self.uniform_buffers{
+                logical_device.destroy_buffer(*buffer, None);
+            }
+            for memory in &self.uniform_buffers_memory{
+                logical_device.free_memory(*memory, None);
+            }
         }
     }
 }

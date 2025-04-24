@@ -106,6 +106,7 @@ impl App {
         let signal_semaphores = [self.renderer().sync.render_finished_semaphore];
         let wait_semaphores = [self.renderer().sync.image_available_semaphore];
         let queue = self.renderer().device.queues.graphics.1;
+        self.renderer().buffers.update_uniform_buffer(image_index);
         let submit_info = SubmitInfo::default()
             .command_buffers(&command_buffers)
             .signal_semaphores(&signal_semaphores)
