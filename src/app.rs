@@ -16,8 +16,10 @@ pub struct App {
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = event_loop
-            .create_window(WindowAttributes::default().with_title("vxl"))
-            .unwrap();
+            .create_window(WindowAttributes::default()
+                .with_title("vxl")
+                .with_inner_size(winit::dpi::LogicalSize::new(800.0, 800.0))
+            ).unwrap();
         self.renderer = Some(Renderer::new(&window));
         self.window = Some(window);
         self.window().request_redraw();
