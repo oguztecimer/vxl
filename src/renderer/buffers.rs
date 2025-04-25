@@ -3,7 +3,7 @@ use std::ptr;
 use std::time::Instant;
 use ash::Instance;
 use ash::vk::*;
-use glam::{Mat4};
+use glam::{vec3, vec4, Mat4};
 use crate::renderer::device::{Device};
 use crate::renderer::vertex::{get_indices, get_vertices, Vertex};
 
@@ -78,15 +78,19 @@ impl Buffers {
 
     pub fn update_uniform_buffer(&self, image_index: u32, extent:Extent2D){
 
+        let identity_matrix = Mat4{
+            x_axis: vec4(1.0,0.0,0.0,0.0),
+            y_axis: vec4(0.0,-1.0,0.0,0.0),
+            z_axis: vec4(0.0,0.0,1.0,0.0),
+            w_axis: vec4(0.0,0.0,0.0,1.0),
+        };
         let current_time = Instant::now();
         let elapsed = current_time.duration_since(self.start_time).as_secs_f32();
-        let model =Mat4::from_rotation_z(elapsed * 90.0_f32.to_radians()) * Mat4::IDENTITY;
-        let view = Mat4::IDENTITY;
-        let proj = Mat4::IDENTITY;
-
-
-        //let view = Mat4::look_at_rh(vec3(0.0,-2.0,3.0),vec3(0.0,0.0,0.0),vec3(0.0,0.0,1.0));
-        //let proj = Mat4::perspective_rh(45.0_f32.to_radians(),extent.width as f32/extent.height as f32,0.1,10.0);
+        let model =Mat4::from_rotation_z(elapsed * 90.0_f32.to_radians()) * identity_matrix;
+        // let view = Mat4::IDENTITY;
+        // let proj = Mat4::IDENTITY;
+        let view = Mat4::look_at_lh(vec3(1.0,1.0,2.0),vec3(0.0,0.0,0.0),vec3(0.0,0.0,1.0)) * identity_matrix;
+        let proj = Mat4::perspective_lh(45.0_f32.to_radians(),extent.width as f32/extent.height as f32,0.01,100.0) * identity_matrix;
         let ubo = UniformBufferObject{ model,view,proj };
         unsafe {
             ptr::copy_nonoverlapping(
