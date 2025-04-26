@@ -11,6 +11,9 @@ mod command_buffers;
 mod frame_buffers;
 mod descriptor;
 
+use std::ffi::c_void;
+use std::fs::File;
+use std::ptr;
 use ash::vk::*;
 use ash::{Entry};
 use winit::window::Window;
@@ -45,6 +48,74 @@ impl Renderer {
         let mut descriptor = Descriptor::new(&device);
         let pipeline = pipeline::Pipeline::new(&device,&swapchain,&descriptor);
         let command_pools = CommandPools::new(&device);
+
+        //
+        let decoder = png::Decoder::new(File::open("resources/textures/texture.png").unwrap());
+        let mut reader = decoder.read_info()
+            .expect("Could not read info");
+        let tex_width = reader.info().width;
+        let tex_height = reader.info().height;
+        let mut pixels = vec![0u8; (tex_width * tex_height * 4) as usize];
+        // Read the image data
+        reader
+            .next_frame(&mut pixels)
+            .expect("Could not read png");
+
+        let image_size = (tex_width * tex_height * 4) as DeviceSize;
+        let (staging_buffer,staging_buffer_memory) = Buffers::create_buffer(
+            &device,
+            &instance.handle,
+            BufferUsageFlags::TRANSFER_SRC,
+            MemoryPropertyFlags::HOST_VISIBLE | MemoryPropertyFlags::HOST_COHERENT,
+            image_size,
+            SharingMode::EXCLUSIVE,
+            &[]
+        );
+        let data = unsafe {
+            device.logical.map_memory(
+                staging_buffer_memory,
+                0,
+                image_size,
+                MemoryMapFlags::empty()
+            )
+        }
+            .expect("Could not map memory");
+        unsafe {
+            ptr::copy_nonoverlapping(
+                pixels.as_ptr() as *const c_void,
+                data,
+                image_size as usize,
+            );
+        }
+        unsafe { device.logical.unmap_memory(staging_buffer_memory) };
+        reader.finish()
+            .expect("Could not finish");
+
+        //
+
+        let image_create_info = ImageCreateInfo::default()
+            .image_type(ImageType::TYPE_2D)
+            .extent(Extent3D{
+                width: tex_width,
+                height: tex_height,
+                depth: 1
+            })
+            .mip_levels(1)
+            .array_layers(1)
+            .format(Format::R8G8B8A8_SRGB)
+            .tiling(ImageTiling::OPTIMAL)
+            .initial_layout(ImageLayout::UNDEFINED)
+            .usage(ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED)
+            .sharing_mode(SharingMode::EXCLUSIVE)
+            .samples(SampleCountFlags::TYPE_1);
+        let texture_image = unsafe{device.logical.create_image(&image_create_info,None)}
+            .expect("Could not create image");
+        //
+        let command_buffer = Buffers::begin_command_buffer(&device,command_pools.transfer);
+
+        Buffers::end_command_buffer(&device,command_buffer,command_pools.transfer);
+
+        //
         let frame_buffers = frame_buffers::create_frame_buffers(&swapchain, pipeline.render_pass, &device.logical);
         let buffers = Buffers::new(&instance.handle,&device,&command_pools.transfer);
         descriptor.create_descriptor_sets(&device,&buffers);

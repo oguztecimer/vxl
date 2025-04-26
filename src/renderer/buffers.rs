@@ -138,12 +138,12 @@ impl Buffers {
             .expect("Could not map memory");
         unsafe {
             ptr::copy_nonoverlapping(
-                vertices.as_ptr() as *const std::ffi::c_void,
+                vertices.as_ptr() as *const c_void,
                 data,
                 vertices_size,
             );
         }
-        let data = unsafe{(data as *mut u8).add(aligned_buffer_size) as *mut std::ffi::c_void};
+        let data = unsafe{(data as *mut u8).add(aligned_buffer_size) as *mut c_void};
         unsafe {
             ptr::copy_nonoverlapping(
                 indices.as_ptr() as *const std::ffi::c_void,
@@ -226,16 +226,10 @@ impl Buffers {
         (buffer, buffer_memory)
     }
 
-    fn copy_buffer(
-        device: &Device,
-        command_pool: &CommandPool,
-        src_buffer: Buffer,
-        dst_buffer: Buffer,
-        size: DeviceSize
-    ) {
+    pub fn begin_command_buffer(device: &Device,command_pool: CommandPool) -> CommandBuffer{
         let command_buffer_allocate_info = CommandBufferAllocateInfo::default()
             .level(CommandBufferLevel::PRIMARY)
-            .command_pool(*command_pool)
+            .command_pool(command_pool)
             .command_buffer_count(1);
         let command_buffer =
             unsafe { device.logical.allocate_command_buffers(&command_buffer_allocate_info) }
@@ -244,12 +238,10 @@ impl Buffers {
             CommandBufferBeginInfo::default().flags(CommandBufferUsageFlags::ONE_TIME_SUBMIT);
         unsafe { device.logical.begin_command_buffer(command_buffer, &command_buffer_begin_info) }
             .expect("Could not begin command buffer");
-        let copy_regions = [BufferCopy {
-            src_offset: 0,
-            dst_offset: 0,
-            size,
-        }];
-        unsafe { device.logical.cmd_copy_buffer(command_buffer, src_buffer, dst_buffer, &copy_regions) }
+        command_buffer
+    }
+
+    pub fn end_command_buffer(device: &Device,command_buffer:CommandBuffer,command_pool: CommandPool){
         unsafe { device.logical.end_command_buffer(command_buffer) }
             .expect("Could not end command buffer");
         let command_buffers = [command_buffer];
@@ -262,7 +254,25 @@ impl Buffers {
         //todo: Improve parallelization: use fences
         unsafe { device.logical.queue_wait_idle(device.queues.transfer.1) }
             .expect("Could not wait for queue idle");
-        unsafe { device.logical.free_command_buffers(*command_pool, &command_buffers) };
+        unsafe { device.logical.free_command_buffers(command_pool, &command_buffers) };
+    }
+
+    fn copy_buffer(
+        device: &Device,
+        command_pool: &CommandPool,
+        src_buffer: Buffer,
+        dst_buffer: Buffer,
+        size: DeviceSize
+    ) {
+
+        let copy_regions = [BufferCopy {
+            src_offset: 0,
+            dst_offset: 0,
+            size,
+        }];
+        let command_buffer= Self::begin_command_buffer(device,*command_pool);
+        unsafe { device.logical.cmd_copy_buffer(command_buffer, src_buffer, dst_buffer, &copy_regions) }
+        Self::end_command_buffer(device,command_buffer,*command_pool);
     }
 
     fn find_memory_type_index(
