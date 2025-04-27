@@ -78,10 +78,9 @@ impl<T> SpatialOctree<T> {
     }
 
     fn remove_recursive(node: &mut SpatialOctreeNode<T>, position: IVec3) -> bool {
-        //true means there is nothing left in this node (data or neighbor, therefore this node needs to be removed too)
         if node.half_extent < 1 {
             return true;
-        };
+        }
         let Some(children) = &mut node.children else {
             return false;
         };
@@ -94,7 +93,6 @@ impl<T> SpatialOctree<T> {
         if result {
             children[index] = None;
             node.child_count -= 1;
-            //if !children.iter().any(|child|{child.is_some()}){
             if node.child_count == 0 {
                 node.children = None;
                 return true;
@@ -127,6 +125,7 @@ impl<T> SpatialOctree<T> {
             node.children = Some(Box::from(children));
         }
     }
+
     fn create_new_node(index: usize, center: &IVec3, half_extent: i32) -> SpatialOctreeNode<T> {
         let offset = half_extent / 2;
         let center = IVec3::new(
@@ -136,6 +135,7 @@ impl<T> SpatialOctree<T> {
         );
         SpatialOctreeNode::new(center, offset)
     }
+
     fn get_child_index(pos: IVec3, center: IVec3) -> usize {
         ((pos.x > center.x) as usize)
             | ((pos.y > center.y) as usize) << 1
