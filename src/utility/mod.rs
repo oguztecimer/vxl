@@ -1,1 +1,1 @@
-mod sparse_spatial_octree;
+pub mod sparse_spatial_octree;

@@ -3,15 +3,15 @@ use glam::IVec3;
 
 const MAX_DEPTH: u32 = 10;
 
-pub struct SpatialOctreeNode<T> {
+pub struct SparseSpatialOctreeNode<T> {
     center: IVec3,
     half_extent: i32,
     data: Option<T>,
-    children: Option<Box<[Option<SpatialOctreeNode<T>>; 8]>>,
+    children: Option<Box<[Option<SparseSpatialOctreeNode<T>>; 8]>>,
     child_count: usize,
 }
 
-impl<T> SpatialOctreeNode<T> {
+impl<T> SparseSpatialOctreeNode<T> {
     pub fn new(center: IVec3, half_extent: i32) -> Self {
         Self {
             center,
@@ -23,11 +23,11 @@ impl<T> SpatialOctreeNode<T> {
     }
 }
 
-pub struct SpatialOctree<T> {
-    root: SpatialOctreeNode<T>,
+pub struct SparseSpatialOctree<T> {
+    root: SparseSpatialOctreeNode<T>,
 }
 
-impl<T> SpatialOctree<T> {
+impl<T> SparseSpatialOctree<T> {
     pub fn new(center: IVec3, capacity: i32) -> Self {
         if capacity <= 0 {
             panic!("Can not create a tree with non-positive capacity.");
@@ -46,7 +46,7 @@ impl<T> SpatialOctree<T> {
                 break;
             }
         }
-        let root = SpatialOctreeNode::new(center, half_extent);
+        let root = SparseSpatialOctreeNode::new(center, half_extent);
         Self { root }
     }
 
@@ -62,7 +62,7 @@ impl<T> SpatialOctree<T> {
         Self::get_recursive(&self.root, position)
     }
 
-    fn get_recursive(node: &SpatialOctreeNode<T>, position: IVec3) -> Option<&T> {
+    fn get_recursive(node: &SparseSpatialOctreeNode<T>, position: IVec3) -> Option<&T> {
         if node.half_extent < 1 {
             return node.data.as_ref();
         }
@@ -77,7 +77,7 @@ impl<T> SpatialOctree<T> {
         }
     }
 
-    fn remove_recursive(node: &mut SpatialOctreeNode<T>, position: IVec3) -> bool {
+    fn remove_recursive(node: &mut SparseSpatialOctreeNode<T>, position: IVec3) -> bool {
         if node.half_extent < 1 {
             return true;
         }
@@ -101,7 +101,7 @@ impl<T> SpatialOctree<T> {
         false
     }
 
-    fn add_recursive(node: &mut SpatialOctreeNode<T>, item: T, position: IVec3) {
+    fn add_recursive(node: &mut SparseSpatialOctreeNode<T>, item: T, position: IVec3) {
         if node.half_extent < 1 {
             node.data = Some(item);
             return;
@@ -117,7 +117,7 @@ impl<T> SpatialOctree<T> {
                 children[index] = Some(new_node);
             }
         } else {
-            let mut children: [Option<SpatialOctreeNode<T>>; 8] = core::array::from_fn(|_| None);
+            let mut children: [Option<SparseSpatialOctreeNode<T>>; 8] = core::array::from_fn(|_| None);
             let mut new_node = Self::create_new_node(index, &node.center, node.half_extent);
             Self::add_recursive(&mut new_node, item, position);
             node.child_count += 1;
@@ -126,14 +126,14 @@ impl<T> SpatialOctree<T> {
         }
     }
 
-    fn create_new_node(index: usize, center: &IVec3, half_extent: i32) -> SpatialOctreeNode<T> {
+    fn create_new_node(index: usize, center: &IVec3, half_extent: i32) -> SparseSpatialOctreeNode<T> {
         let offset = half_extent / 2;
         let center = IVec3::new(
             center.x + if index & 1 != 0 { offset } else { -offset },
             center.y + if index & 2 != 0 { offset } else { -offset },
             center.z + if index & 4 != 0 { offset } else { -offset },
         );
-        SpatialOctreeNode::new(center, offset)
+        SparseSpatialOctreeNode::new(center, offset)
     }
 
     fn get_child_index(pos: IVec3, center: IVec3) -> usize {
