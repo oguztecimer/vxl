@@ -5,26 +5,26 @@ mod tests {
     use glam::IVec3;
 
     // Helper function to create a default octree for tests
-    fn create_test_octree() -> SparseSpatialOctree<i32> {
+    fn create_test_octree() -> SparseSpatialOctree {
         SparseSpatialOctree::new(IVec3::new(0, 0, 0), 4096)
     }
 
     #[test]
     fn test_new_octree_half_extent() {
-        let octree = SparseSpatialOctree::<i32>::new(IVec3::ZERO, 1);
+        let octree = SparseSpatialOctree::new(IVec3::ZERO, 1);
         assert_eq!(octree.root.half_extent, 0); // Leaf node
 
-        let octree = SparseSpatialOctree::<i32>::new(IVec3::ZERO, 8);
+        let octree = SparseSpatialOctree::new(IVec3::ZERO, 8);
         assert_eq!(octree.root.half_extent, 1); // 8^1 -> half_extent = 2^0
 
-        let octree = SparseSpatialOctree::<i32>::new(IVec3::ZERO, 64);
+        let octree = SparseSpatialOctree::new(IVec3::ZERO, 64);
         assert_eq!(octree.root.half_extent, 2); // 8^2 -> half_extent = 2^1
     }
 
     #[test]
     #[should_panic]
     fn test_new_octree_invalid_capacity() {
-        SparseSpatialOctree::<i32>::new(IVec3::ZERO, 0);
+        SparseSpatialOctree::new(IVec3::ZERO, 0);
     }
 
     #[test]
@@ -32,7 +32,6 @@ mod tests {
         let octree = create_test_octree();
         assert_eq!(octree.root.center, IVec3::new(0, 0, 0));
         assert_eq!(octree.root.half_extent, 8);
-        assert!(octree.root.data.is_none());
         assert!(octree.root.children.is_none());
         assert_eq!(octree.root.child_count, 0);
     }
@@ -41,7 +40,7 @@ mod tests {
     fn test_add_single_item() {
         let mut octree = create_test_octree();
         let position = IVec3::new(2, 2, 2);
-        octree.add(42, position);
+        octree.add(position);
 
         // Check that children were created
         assert!(octree.root.children.is_some());
@@ -49,47 +48,40 @@ mod tests {
 
         // Navigate to the node containing the item
         let children = octree.root.children.unwrap();
-        let child_index = SparseSpatialOctree::<i32>::get_child_index(position, octree.root.center);
+        let child_index = SparseSpatialOctree::get_child_index(position, octree.root.center);
         let child = children[child_index].as_ref().unwrap();
 
         // Check child node properties
         assert_eq!(child.center, IVec3::new(4, 4, 4));
         assert_eq!(child.half_extent, 4);
-        assert!(child.data.is_none());
         assert!(child.children.is_some());
 
         // Further navigate to the leaf node
         let children = child.children.as_ref().unwrap();
-        let child_index = SparseSpatialOctree::<i32>::get_child_index(position, child.center);
+        let child_index = SparseSpatialOctree::get_child_index(position, child.center);
         let child = children[child_index].as_ref().unwrap();
 
         //assert_eq!(child.center, IVec3::new(4, 4, 4));
         assert_eq!(child.half_extent, 2);
-        assert!(child.data.is_none());
         assert!(child.children.is_some());
 
         // Further navigate to the leaf node
         let children = child.children.as_ref().unwrap();
-        let child_index = SparseSpatialOctree::<i32>::get_child_index(position, child.center);
+        let child_index = SparseSpatialOctree::get_child_index(position, child.center);
         let child = children[child_index].as_ref().unwrap();
 
         //assert_eq!(child.center, IVec3::new(4, 4, 4));
         assert_eq!(child.half_extent, 1);
-        assert!(child.data.is_none());
         assert!(child.children.is_some());
 
         // Further navigate to the leaf node
         let children = child.children.as_ref().unwrap();
-        let child_index = SparseSpatialOctree::<i32>::get_child_index(position, child.center);
+        let child_index = SparseSpatialOctree::get_child_index(position, child.center);
         let child = children[child_index].as_ref().unwrap();
 
         //assert_eq!(child.center, IVec3::new(4, 4, 4));
         assert_eq!(child.half_extent, 0);
-        assert!(child.data.is_some());
         assert!(child.children.is_none());
-
-        // Check leaf node contains the item
-        assert_eq!(child.data, Some(42));
     }
 
     #[test]
@@ -102,7 +94,7 @@ mod tests {
         ];
 
         for (i, &pos) in positions.iter().enumerate() {
-            octree.add(i as i32, pos);
+            octree.add(pos);
         }
 
         assert!(octree.root.children.is_some());
@@ -116,14 +108,15 @@ mod tests {
 
             // Navigate to leaf node
             while current_node.children.is_some() {
-                let index = SparseSpatialOctree::<i32>::get_child_index(current_pos, current_node.center);
+                let index = SparseSpatialOctree::get_child_index(current_pos, current_node.center);
                 current_node = current_node.children.as_ref().unwrap()[index]
                     .as_ref()
                     .unwrap();
                 current_pos = pos;
             }
 
-            assert_eq!(current_node.data, Some(i as i32));
+            assert_eq!(current_node.half_extent, 0);
+            assert!(current_node.children.is_none());
         }
     }
 
@@ -133,13 +126,12 @@ mod tests {
         let position = IVec3::new(2, 2, 2);
 
         // Add and remove item
-        octree.add(42, position);
+        octree.add(position);
         octree.remove(position);
 
         // Check that the octree is empty
         assert!(octree.root.children.is_none());
         assert_eq!(octree.root.child_count, 0);
-        assert!(octree.root.data.is_none());
     }
 
     #[test]
@@ -153,7 +145,7 @@ mod tests {
         assert_eq!(octree.root.child_count, 0);
 
         // Add item, then try to remove from wrong position
-        octree.add(42, position);
+        octree.add(position);
         octree.remove(IVec3::new(-2, -2, -2));
 
         // Verify item still exists
@@ -172,7 +164,7 @@ mod tests {
         ];
 
         for (pos, expected_index) in positions {
-            let index = SparseSpatialOctree::<i32>::get_child_index(pos, center);
+            let index = SparseSpatialOctree::get_child_index(pos, center);
             assert_eq!(index, expected_index);
         }
     }
@@ -183,12 +175,12 @@ mod tests {
         let half_extent = 8;
 
         // Test creating node in index 7 (+x,+y,+z)
-        let new_node = SparseSpatialOctree::<i32>::create_new_node(7, &center, half_extent);
+        let new_node = SparseSpatialOctree::create_new_node(7, &center, half_extent);
         assert_eq!(new_node.center, IVec3::new(4, 4, 4));
         assert_eq!(new_node.half_extent, 4);
 
         // Test creating node in index 0 (-x,-y,-z)
-        let new_node = SparseSpatialOctree::<i32>::create_new_node(0, &center, half_extent);
+        let new_node = SparseSpatialOctree::create_new_node(0, &center, half_extent);
         assert_eq!(new_node.center, IVec3::new(-4, -4, -4));
         assert_eq!(new_node.half_extent, 4);
     }
@@ -198,38 +190,37 @@ mod tests {
         let mut octree = SparseSpatialOctree::new(IVec3::new(0, 0, 0), 1);
         let position = IVec3::new(0, 0, 0);
 
-        octree.add(42, position);
-        assert_eq!(octree.root.data, Some(42));
+        octree.add(position);
         assert!(octree.root.children.is_none());
         assert_eq!(octree.root.child_count, 0);
     }
 
     #[test]
     fn test_get() {
-        let mut octree: SparseSpatialOctree<i32> = SparseSpatialOctree::new(IVec3::ZERO, 8);
+        let mut octree: SparseSpatialOctree = SparseSpatialOctree::new(IVec3::ZERO, 8);
 
         // Test empty octree
-        assert_eq!(octree.get(IVec3::new(1, 1, 1)), None);
+        assert_eq!(octree.exists(IVec3::new(1, 1, 1)), false);
 
         // Test adding and retrieving an item
-        octree.add(42, IVec3::new(1, 1, 1));
-        assert_eq!(octree.get(IVec3::new(1, 1, 1)), Some(&42));
-        assert_eq!(octree.get(IVec3::new(0, 0, 0)), None);
+        octree.add(IVec3::new(1, 1, 1));
+        assert_eq!(octree.exists(IVec3::new(1, 1, 1)), true);
+        assert_eq!(octree.exists(IVec3::new(0, 0, 0)), false);
 
         // Test adding another item
-        octree.add(99, IVec3::new(-1, -1, -1));
-        assert_eq!(octree.get(IVec3::new(-1, -1, -1)), Some(&99));
+        octree.add(IVec3::new(-1, -1, -1));
+        assert_eq!(octree.exists(IVec3::new(-1, -1, -1)), true);
 
         // Test removing an item
         octree.remove(IVec3::new(1, 1, 1));
-        assert_eq!(octree.get(IVec3::new(1, 1, 1)), None);
-        assert_eq!(octree.get(IVec3::new(-1, -1, -1)), Some(&99));
+        assert_eq!(octree.exists(IVec3::new(1, 1, 1)), false);
+        assert_eq!(octree.exists(IVec3::new(-1, -1, -1)), true);
     }
     #[test]
     fn test_add_child_count() {
         let mut octree = SparseSpatialOctree::new(IVec3::ZERO, 8);
-        octree.add(42, IVec3::new(1, 1, 1));
-        octree.add(43, IVec3::new(-1, -1, -1));
+        octree.add(IVec3::new(1, 1, 1));
+        octree.add(IVec3::new(-1, -1, -1));
         // Verify child_count is correct at root
         assert_eq!(octree.root.child_count, 2);
     }
