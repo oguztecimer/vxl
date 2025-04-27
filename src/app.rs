@@ -16,10 +16,12 @@ pub struct App {
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = event_loop
-            .create_window(WindowAttributes::default()
-                .with_title("vxl")
-                .with_inner_size(winit::dpi::LogicalSize::new(800.0, 800.0))
-            ).unwrap();
+            .create_window(
+                WindowAttributes::default()
+                    .with_title("vxl")
+                    .with_inner_size(winit::dpi::LogicalSize::new(800.0, 800.0)),
+            )
+            .unwrap();
         self.renderer = Some(Renderer::new(&window));
         self.window = Some(window);
         self.window().request_redraw();
@@ -34,9 +36,13 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => {
                 self.close_requested = true;
-                unsafe { self.renderer().device.logical.device_wait_idle()
-                    .expect("Could not wait for device idle");
-                    
+                unsafe {
+                    self.renderer()
+                        .device
+                        .logical
+                        .device_wait_idle()
+                        .expect("Could not wait for device idle");
+
                     self.renderer().device.logical.reset_command_buffer(
                         self.renderer().command_buffer,
                         CommandBufferResetFlags::default(),
@@ -63,7 +69,9 @@ impl App {
     fn renderer(&self) -> &Renderer {
         self.renderer.as_ref().unwrap()
     }
-    fn window(&self) -> &Window { self.window.as_ref().unwrap() }
+    fn window(&self) -> &Window {
+        self.window.as_ref().unwrap()
+    }
 
     fn draw_frame(&mut self) {
         if self.close_requested {
@@ -75,14 +83,12 @@ impl App {
         let mut image_index = None;
         let result = {
             unsafe {
-                self.renderer()
-                    .swapchain.loader
-                    .acquire_next_image(
-                        self.renderer().swapchain.handle,
-                        u64::MAX,
-                        self.renderer().sync.image_available_semaphore,
-                        Fence::null(),
-                    )
+                self.renderer().swapchain.loader.acquire_next_image(
+                    self.renderer().swapchain.handle,
+                    u64::MAX,
+                    self.renderer().sync.image_available_semaphore,
+                    Fence::null(),
+                )
             }
         };
         match result {
@@ -108,7 +114,9 @@ impl App {
         let signal_semaphores = [self.renderer().sync.render_finished_semaphore];
         let wait_semaphores = [self.renderer().sync.image_available_semaphore];
         let queue = self.renderer().device.queues.graphics.1;
-        self.renderer().buffers.update_uniform_buffer(image_index,self.renderer().swapchain.extent);
+        self.renderer()
+            .buffers
+            .update_uniform_buffer(image_index, self.renderer().swapchain.extent);
         let submit_info = SubmitInfo::default()
             .command_buffers(&command_buffers)
             .signal_semaphores(&signal_semaphores)
@@ -129,7 +137,12 @@ impl App {
             .swapchains(&swap_chains)
             .image_indices(&image_indices);
         let result = {
-            unsafe { self.renderer().swapchain.loader.queue_present(queue, &present_info) }
+            unsafe {
+                self.renderer()
+                    .swapchain
+                    .loader
+                    .queue_present(queue, &present_info)
+            }
         };
         match result {
             Ok(_) => (),
@@ -139,7 +152,12 @@ impl App {
                 }
             }
         }
-        unsafe { self.renderer().device.logical.wait_for_fences(&fences, true, u64::MAX) }
+        unsafe {
+            self.renderer()
+                .device
+                .logical
+                .wait_for_fences(&fences, true, u64::MAX)
+        }
         .expect("Error in wait for inflight fence");
         if !self.close_requested {
             self.window().request_redraw();

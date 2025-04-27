@@ -1,21 +1,20 @@
-use ash::{vk, Entry};
-use ash::vk::{ApplicationInfo, InstanceCreateInfo, API_VERSION_1_3};
+use ash::vk::{API_VERSION_1_3, ApplicationInfo, InstanceCreateInfo};
+use ash::{Entry, vk};
 use winit::raw_window_handle::HasDisplayHandle;
 use winit::window::Window;
 
-pub struct Instance{
-    pub handle: ash::Instance
+pub struct Instance {
+    pub handle: ash::Instance,
 }
-impl Instance{
+impl Instance {
     pub fn new(window: &Window, entry: &Entry) -> Instance {
         let application_info = ApplicationInfo::default().api_version(API_VERSION_1_3);
 
-        let create_flags =
-            if cfg!(any(target_os = "macos", target_os = "ios")) {
-                vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR
-            } else {
-                vk::InstanceCreateFlags::default()
-            };
+        let create_flags = if cfg!(any(target_os = "macos", target_os = "ios")) {
+            vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR
+        } else {
+            vk::InstanceCreateFlags::default()
+        };
 
         let display_handle = window
             .display_handle()
@@ -43,12 +42,16 @@ impl Instance{
             .flags(create_flags)
             .enabled_extension_names(&extension_names);
         Instance {
-            handle: unsafe { entry
-                .create_instance(&create_info, None)
-                .expect("Instance creation err")
-            }
+            handle: unsafe {
+                entry
+                    .create_instance(&create_info, None)
+                    .expect("Instance creation err")
+            },
         }
     }
-    pub fn cleanup(&self){ unsafe{self.handle.destroy_instance(None);} }
+    pub fn cleanup(&self) {
+        unsafe {
+            self.handle.destroy_instance(None);
+        }
+    }
 }
-

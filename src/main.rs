@@ -1,7 +1,7 @@
 mod app;
 mod renderer;
-mod world;
 mod utility;
+mod world;
 
 use app::App;
 use winit::event_loop::{ControlFlow, EventLoop};

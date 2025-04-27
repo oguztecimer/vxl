@@ -1,4 +1,6 @@
-use ash::vk::{Format, VertexInputAttributeDescription, VertexInputBindingDescription, VertexInputRate};
+use ash::vk::{
+    Format, VertexInputAttributeDescription, VertexInputBindingDescription, VertexInputRate,
+};
 #[allow(dead_code)]
 pub struct Vertex {
     pos: (f32, f32),
@@ -7,14 +9,26 @@ pub struct Vertex {
 
 pub fn get_vertices() -> Vec<Vertex> {
     vec![
-        Vertex { pos: (-0.5, -0.5), color: (1.0, 0.0, 0.0), },
-        Vertex { pos: (0.5, -0.5), color: (0.0, 1.0, 0.0), },
-        Vertex { pos: (0.5, 0.5), color: (1.0, 0.0, 0.0), },
-        Vertex { pos: (-0.5, 0.5), color: (0.0, 0.0, 1.0), },
+        Vertex {
+            pos: (-0.5, -0.5),
+            color: (1.0, 0.0, 0.0),
+        },
+        Vertex {
+            pos: (0.5, -0.5),
+            color: (0.0, 1.0, 0.0),
+        },
+        Vertex {
+            pos: (0.5, 0.5),
+            color: (1.0, 0.0, 0.0),
+        },
+        Vertex {
+            pos: (-0.5, 0.5),
+            color: (0.0, 0.0, 1.0),
+        },
     ]
 }
 pub fn get_indices() -> Vec<u16> {
-    vec![0,1,2,2,3,0]
+    vec![0, 1, 2, 2, 3, 0]
 }
 
 impl Vertex {

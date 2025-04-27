@@ -1,28 +1,33 @@
-use std::ffi::CString;
-use ash::vk::{AccessFlags, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp, ColorComponentFlags, CullModeFlags, DynamicState, FrontFace, GraphicsPipelineCreateInfo, ImageLayout, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineStageFlags, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, RenderPass, RenderPassCreateInfo, SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SubpassDependency, SubpassDescription, SUBPASS_EXTERNAL};
-use vk_shader_macros::include_glsl;
 use crate::renderer::descriptor::Descriptor;
 use crate::renderer::device::Device;
 use crate::renderer::swapchain::Swapchain;
 use crate::renderer::vertex::Vertex;
+use ash::vk::{
+    AccessFlags, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp,
+    ColorComponentFlags, CullModeFlags, DynamicState, FrontFace, GraphicsPipelineCreateInfo,
+    ImageLayout, PipelineBindPoint, PipelineCache, PipelineColorBlendAttachmentState,
+    PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo,
+    PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout,
+    PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo,
+    PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineStageFlags,
+    PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode,
+    PrimitiveTopology, RenderPass, RenderPassCreateInfo, SUBPASS_EXTERNAL, SampleCountFlags,
+    ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SubpassDependency, SubpassDescription,
+};
+use std::ffi::CString;
+use vk_shader_macros::include_glsl;
 
 const VERT: &[u32] = include_glsl!("resources/shaders/shader.vert");
 const FRAG: &[u32] = include_glsl!("resources/shaders/shader.frag");
 
-
-
-pub struct Pipeline{
+pub struct Pipeline {
     pub handle: ash::vk::Pipeline,
     pub layout: PipelineLayout,
     pub render_pass: RenderPass,
 }
 
-impl Pipeline{
-    pub fn new(
-        device: &Device,
-        swapchain: &Swapchain,
-        descriptor: &Descriptor
-    ) -> Self{
+impl Pipeline {
+    pub fn new(device: &Device, swapchain: &Swapchain, descriptor: &Descriptor) -> Self {
         let vert_module = Self::create_shader_module(device, VERT);
         let frag_module = Self::create_shader_module(device, FRAG);
 
@@ -78,12 +83,15 @@ impl Pipeline{
             .attachments(&attachments);
 
         let descriptor_set_layouts = &[descriptor.layout];
-        let pipeline_layout_create_info = PipelineLayoutCreateInfo::default()
-            .set_layouts(descriptor_set_layouts);
+        let pipeline_layout_create_info =
+            PipelineLayoutCreateInfo::default().set_layouts(descriptor_set_layouts);
 
-        let layout =
-            unsafe { device.logical.create_pipeline_layout(&pipeline_layout_create_info, None) }
-                .expect("Could not create pipeline layout");
+        let layout = unsafe {
+            device
+                .logical
+                .create_pipeline_layout(&pipeline_layout_create_info, None)
+        }
+        .expect("Could not create pipeline layout");
 
         //Render pass
         let color_attachment = AttachmentDescription::default()
@@ -122,7 +130,8 @@ impl Pipeline{
             .dependencies(&dependencies);
 
         let render_pass = unsafe {
-            device.logical
+            device
+                .logical
                 .create_render_pass(&render_pass_create_info, None)
                 .expect("Could not create render pass")
         };
@@ -142,7 +151,8 @@ impl Pipeline{
             .subpass(0);
         let graphics_pipeline_create_infos = [graphics_pipeline_create_info];
         let handle = unsafe {
-            device.logical
+            device
+                .logical
                 .create_graphics_pipelines(
                     PipelineCache::null(),
                     &graphics_pipeline_create_infos,
@@ -156,18 +166,22 @@ impl Pipeline{
             device.logical.destroy_shader_module(frag_module, None)
         };
 
-        Self{
+        Self {
             handle,
             layout,
-            render_pass
+            render_pass,
         }
     }
     fn create_shader_module(device: &Device, code: &[u32]) -> ShaderModule {
         let shader_module_create_info = ShaderModuleCreateInfo::default().code(code);
-        unsafe { device.logical.create_shader_module(&shader_module_create_info, None) }
-            .expect("Could not create shader module")
+        unsafe {
+            device
+                .logical
+                .create_shader_module(&shader_module_create_info, None)
+        }
+        .expect("Could not create shader module")
     }
-    
+
     pub fn cleanup(&self, logical_device: &ash::Device) {
         unsafe {
             logical_device.destroy_pipeline(self.handle, None);

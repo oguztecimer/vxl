@@ -1,34 +1,40 @@
-use ash::vk::{CompositeAlphaFlagsKHR, Extent2D, Format, ImageAspectFlags, ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, PresentModeKHR, SharingMode, SwapchainCreateInfoKHR, SwapchainKHR};
-use crate::renderer::device::{Device};
+use crate::renderer::device::Device;
 use crate::renderer::surface::Surface;
+use ash::vk::{
+    CompositeAlphaFlagsKHR, Extent2D, Format, ImageAspectFlags, ImageSubresourceRange,
+    ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, PresentModeKHR, SharingMode,
+    SwapchainCreateInfoKHR, SwapchainKHR,
+};
 
-pub struct Swapchain{
+pub struct Swapchain {
     pub handle: SwapchainKHR,
     pub loader: ash::khr::swapchain::Device,
     pub image_views: Vec<ImageView>,
     pub extent: Extent2D,
-    pub image_format: Format
+    pub image_format: Format,
 }
 
-impl Swapchain{
-    pub fn new(
-        instance: &ash::Instance,
-        device: &Device,
-        surface: &Surface
-    ) -> Self {
+impl Swapchain {
+    pub fn new(instance: &ash::Instance, device: &Device, surface: &Surface) -> Self {
         let loader = ash::khr::swapchain::Device::new(instance, &device.logical);
         let surface_present_modes = unsafe {
-            surface.loader.get_physical_device_surface_present_modes(device.physical, surface.handle)
+            surface
+                .loader
+                .get_physical_device_surface_present_modes(device.physical, surface.handle)
         }
-            .expect("Could not get surface present modes.");
+        .expect("Could not get surface present modes.");
         let surface_capabilities = unsafe {
-            surface.loader.get_physical_device_surface_capabilities(device.physical, surface.handle)
+            surface
+                .loader
+                .get_physical_device_surface_capabilities(device.physical, surface.handle)
         }
-            .expect("Could not get surface capabilities");
+        .expect("Could not get surface capabilities");
         let surface_formats = unsafe {
-            surface.loader.get_physical_device_surface_formats(device.physical, surface.handle)
+            surface
+                .loader
+                .get_physical_device_surface_formats(device.physical, surface.handle)
         }
-            .expect("Could not get surface formats");
+        .expect("Could not get surface formats");
         let surface_present_mode = surface_present_modes
             .iter()
             .cloned()
@@ -53,9 +59,8 @@ impl Swapchain{
             .pre_transform(surface_capabilities.current_transform)
             .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
             .present_mode(surface_present_mode);
-        let handle =
-            unsafe { loader.create_swapchain(&create_info, None) }
-                .expect("Could not create swap chain!");
+        let handle = unsafe { loader.create_swapchain(&create_info, None) }
+            .expect("Could not create swap chain!");
         let images = unsafe { loader.get_swapchain_images(handle) }
             .expect("Could not load swap chain images");
         let image_views: Vec<ImageView> = images
@@ -80,15 +85,16 @@ impl Swapchain{
             loader,
             image_views,
             extent,
-            image_format
+            image_format,
         }
     }
 
-    pub fn cleanup(&self,logical_device: &ash::Device) {
-        unsafe{
-            for view in &self.image_views { logical_device.destroy_image_view(*view, None) }
+    pub fn cleanup(&self, logical_device: &ash::Device) {
+        unsafe {
+            for view in &self.image_views {
+                logical_device.destroy_image_view(*view, None)
+            }
             self.loader.destroy_swapchain(self.handle, None)
         }
     }
 }
-

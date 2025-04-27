@@ -1,13 +1,14 @@
+use crate::renderer::swapchain::Swapchain;
 use ash::Device;
 use ash::vk::{Framebuffer, FramebufferCreateInfo, RenderPass};
-use crate::renderer::swapchain::Swapchain;
 
 pub fn create_frame_buffers(
     swapchain: &Swapchain,
     render_pass: RenderPass,
     logical_device: &Device,
 ) -> Vec<Framebuffer> {
-    swapchain.image_views
+    swapchain
+        .image_views
         .iter()
         .map(|&image_view| {
             let image_view_array = [image_view];
