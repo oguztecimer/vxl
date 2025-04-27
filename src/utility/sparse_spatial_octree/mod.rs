@@ -6,7 +6,7 @@ const MAX_DEPTH: u32 = 10;
 pub struct SparseSpatialOctreeNode {
     center: IVec3,
     half_extent: i32,
-    children: Option<Box<[Option<SparseSpatialOctreeNode>; 8]>>,
+    children: Option<[Option<Box<SparseSpatialOctreeNode>>; 8]>,
     child_count: usize,
 }
 
@@ -111,15 +111,16 @@ impl SparseSpatialOctree {
                 let mut new_node = Self::create_new_node(index, &node.center, node.half_extent);
                 Self::add_recursive(&mut new_node, position);
                 node.child_count += 1;
-                children[index] = Some(new_node);
+                children[index] = Some(Box::from(new_node));
             }
         } else {
-            let mut children: [Option<SparseSpatialOctreeNode>; 8] = core::array::from_fn(|_| None);
+            let mut children: [Option<Box<SparseSpatialOctreeNode>>; 8] =
+                core::array::from_fn(|_| None);
             let mut new_node = Self::create_new_node(index, &node.center, node.half_extent);
             Self::add_recursive(&mut new_node, position);
             node.child_count += 1;
-            children[index] = Some(new_node);
-            node.children = Some(Box::from(children));
+            children[index] = Some(Box::from(new_node));
+            node.children = Some(children);
         }
     }
 
