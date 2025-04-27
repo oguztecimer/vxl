@@ -23,6 +23,7 @@ impl SparseSpatialOctreeNode {
 
 pub struct SparseSpatialOctree {
     root: SparseSpatialOctreeNode,
+    center: IVec3
 }
 
 impl SparseSpatialOctree {
@@ -44,20 +45,23 @@ impl SparseSpatialOctree {
                 break;
             }
         }
-        let root = SparseSpatialOctreeNode::new(center, half_extent);
-        Self { root }
+        let root = SparseSpatialOctreeNode::new(IVec3::ZERO, half_extent);
+        Self { root,center }
     }
 
     pub fn add(&mut self, position: IVec3) {
-        Self::add_recursive(&mut self.root, position);
+        let relative_position = position - self.center;
+        Self::add_recursive(&mut self.root, relative_position);
     }
 
     pub fn remove(&mut self, position: IVec3) {
-        Self::remove_recursive(&mut self.root, position);
+        let relative_position = position - self.center;
+        Self::remove_recursive(&mut self.root, relative_position);
     }
 
     pub fn exists(&self, position: IVec3) -> bool {
-        Self::exists_recursive(&self.root, position)
+        let relative_position = position - self.center;
+        Self::exists_recursive(&self.root, relative_position)
     }
 
     fn exists_recursive(node: &SparseSpatialOctreeNode, position: IVec3) -> bool {
