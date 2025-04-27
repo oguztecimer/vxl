@@ -1,7 +1,8 @@
 mod tests;
+use crate::world::World;
 use glam::IVec3;
 
-const MAX_DEPTH: u32 = 10;
+const MAX_RADIUS: i32 = 512;
 
 pub struct SparseSpatialOctreeNode {
     center: IVec3,
@@ -23,44 +24,46 @@ impl SparseSpatialOctreeNode {
 
 pub struct SparseSpatialOctree {
     root: SparseSpatialOctreeNode,
-    center: IVec3
+    center: IVec3,
+    radius_sqr: i32,
 }
 
 impl SparseSpatialOctree {
-    pub fn new(center: IVec3, capacity: i32) -> Self {
-        if capacity <= 0 {
-            panic!("Can not create a tree with non-positive capacity.");
-        }
-        if capacity > 8i32.pow(MAX_DEPTH) {
+    pub fn new(center: IVec3, radius: i32) -> Self {
+        //depth = log2(radius)+1
+        if radius > MAX_RADIUS {
             panic!(
-                "Cannot create a tree with capacity larger than 8^MAX_DEPTH({})",
-                MAX_DEPTH
+                "Cannot create a tree with radius larger than {}",
+                MAX_RADIUS
             );
         }
-        let mut half_extent = 0;
-        for i in 0..MAX_DEPTH {
-            let real_capacity = 8i32.pow(i);
-            if real_capacity >= capacity {
-                half_extent = if i == 0 { 0 } else { 1 << (i - 1) };
-                break;
-            }
+        if radius <= 0 || (radius & (radius - 1)) > 0 {
+            panic!("Radius must be a multiplier of 2");
         }
-        let root = SparseSpatialOctreeNode::new(IVec3::ZERO, half_extent);
-        Self { root,center }
+        let radius_sqr = radius * radius;
+        let root = SparseSpatialOctreeNode::new(IVec3::ZERO, radius);
+        Self {
+            root,
+            center,
+            radius_sqr,
+        }
     }
 
     pub fn add(&mut self, position: IVec3) {
         let relative_position = position - self.center;
+        if relative_position.length_squared() > self.radius_sqr {return;}
         Self::add_recursive(&mut self.root, relative_position);
     }
 
     pub fn remove(&mut self, position: IVec3) {
         let relative_position = position - self.center;
+        if relative_position.length_squared() > self.radius_sqr {return;}
         Self::remove_recursive(&mut self.root, relative_position);
     }
 
     pub fn exists(&self, position: IVec3) -> bool {
         let relative_position = position - self.center;
+        if relative_position.length_squared() > self.radius_sqr {return false;}
         Self::exists_recursive(&self.root, relative_position)
     }
 
@@ -143,4 +146,6 @@ impl SparseSpatialOctree {
             | ((pos.y > center.y) as usize) << 1
             | ((pos.z > center.z) as usize) << 2
     }
+
+    fn recenter(&mut self, new_center: IVec3, world: &mut World) {}
 }

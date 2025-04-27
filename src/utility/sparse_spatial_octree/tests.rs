@@ -6,18 +6,16 @@ mod tests {
 
     // Helper function to create a default octree for tests
     fn create_test_octree() -> SparseSpatialOctree {
-        SparseSpatialOctree::new(IVec3::new(0, 0, 0), 4096)
+        SparseSpatialOctree::new(IVec3::new(0, 0, 0), 8)
     }
 
     #[test]
     fn test_new_octree_half_extent() {
-        let octree = SparseSpatialOctree::new(IVec3::ZERO, 1);
-        assert_eq!(octree.root.half_extent, 0); // Leaf node
 
-        let octree = SparseSpatialOctree::new(IVec3::ZERO, 8);
+        let octree = SparseSpatialOctree::new(IVec3::ZERO, 1);
         assert_eq!(octree.root.half_extent, 1); // 8^1 -> half_extent = 2^0
 
-        let octree = SparseSpatialOctree::new(IVec3::ZERO, 64);
+        let octree = SparseSpatialOctree::new(IVec3::ZERO, 2);
         assert_eq!(octree.root.half_extent, 2); // 8^2 -> half_extent = 2^1
     }
 
@@ -189,10 +187,9 @@ mod tests {
     fn test_add_at_minimum_half_extent() {
         let mut octree = SparseSpatialOctree::new(IVec3::new(0, 0, 0), 1);
         let position = IVec3::new(0, 0, 0);
-
         octree.add(position);
-        assert!(octree.root.children.is_none());
-        assert_eq!(octree.root.child_count, 0);
+        assert!(octree.root.children.is_some());
+        assert_eq!(octree.root.child_count, 1);
     }
 
     #[test]
