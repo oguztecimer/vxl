@@ -10,15 +10,15 @@ mod tests {
     }
 
     #[test]
-    fn test_new_octree_half_size() {
+    fn test_new_octree_half_extent() {
         let octree = SpatialOctree::<i32>::new(IVec3::ZERO, 1);
-        assert_eq!(octree.root.half_size, 0); // Leaf node
+        assert_eq!(octree.root.half_extent, 0); // Leaf node
 
         let octree = SpatialOctree::<i32>::new(IVec3::ZERO, 8);
-        assert_eq!(octree.root.half_size, 1); // 8^1 -> half_size = 2^0
+        assert_eq!(octree.root.half_extent, 1); // 8^1 -> half_extent = 2^0
 
         let octree = SpatialOctree::<i32>::new(IVec3::ZERO, 64);
-        assert_eq!(octree.root.half_size, 2); // 8^2 -> half_size = 2^1
+        assert_eq!(octree.root.half_extent, 2); // 8^2 -> half_extent = 2^1
     }
 
     #[test]
@@ -31,7 +31,7 @@ mod tests {
     fn test_new_octree() {
         let octree = create_test_octree();
         assert_eq!(octree.root.center, IVec3::new(0, 0, 0));
-        assert_eq!(octree.root.half_size, 8);
+        assert_eq!(octree.root.half_extent, 8);
         assert!(octree.root.data.is_none());
         assert!(octree.root.children.is_none());
         assert_eq!(octree.root.child_count, 0);
@@ -54,7 +54,7 @@ mod tests {
 
         // Check child node properties
         assert_eq!(child.center, IVec3::new(4, 4, 4));
-        assert_eq!(child.half_size, 4);
+        assert_eq!(child.half_extent, 4);
         assert!(child.data.is_none());
         assert!(child.children.is_some());
 
@@ -64,7 +64,7 @@ mod tests {
         let child = children[child_index].as_ref().unwrap();
 
         //assert_eq!(child.center, IVec3::new(4, 4, 4));
-        assert_eq!(child.half_size, 2);
+        assert_eq!(child.half_extent, 2);
         assert!(child.data.is_none());
         assert!(child.children.is_some());
 
@@ -74,7 +74,7 @@ mod tests {
         let child = children[child_index].as_ref().unwrap();
 
         //assert_eq!(child.center, IVec3::new(4, 4, 4));
-        assert_eq!(child.half_size, 1);
+        assert_eq!(child.half_extent, 1);
         assert!(child.data.is_none());
         assert!(child.children.is_some());
 
@@ -84,7 +84,7 @@ mod tests {
         let child = children[child_index].as_ref().unwrap();
 
         //assert_eq!(child.center, IVec3::new(4, 4, 4));
-        assert_eq!(child.half_size, 0);
+        assert_eq!(child.half_extent, 0);
         assert!(child.data.is_some());
         assert!(child.children.is_none());
 
@@ -180,21 +180,21 @@ mod tests {
     #[test]
     fn test_create_new_node() {
         let center = IVec3::new(0, 0, 0);
-        let half_size = 8;
+        let half_extent = 8;
 
         // Test creating node in index 7 (+x,+y,+z)
-        let new_node = SpatialOctree::<i32>::create_new_node(7, &center, half_size);
+        let new_node = SpatialOctree::<i32>::create_new_node(7, &center, half_extent);
         assert_eq!(new_node.center, IVec3::new(4, 4, 4));
-        assert_eq!(new_node.half_size, 4);
+        assert_eq!(new_node.half_extent, 4);
 
         // Test creating node in index 0 (-x,-y,-z)
-        let new_node = SpatialOctree::<i32>::create_new_node(0, &center, half_size);
+        let new_node = SpatialOctree::<i32>::create_new_node(0, &center, half_extent);
         assert_eq!(new_node.center, IVec3::new(-4, -4, -4));
-        assert_eq!(new_node.half_size, 4);
+        assert_eq!(new_node.half_extent, 4);
     }
 
     #[test]
-    fn test_add_at_minimum_half_size() {
+    fn test_add_at_minimum_half_extent() {
         let mut octree = SpatialOctree::new(IVec3::new(0, 0, 0), 1);
         let position = IVec3::new(0, 0, 0);
 
@@ -202,5 +202,35 @@ mod tests {
         assert_eq!(octree.root.data, Some(42));
         assert!(octree.root.children.is_none());
         assert_eq!(octree.root.child_count, 0);
+    }
+
+    #[test]
+    fn test_get() {
+        let mut octree: SpatialOctree<i32> = SpatialOctree::new(IVec3::ZERO, 8);
+
+        // Test empty octree
+        assert_eq!(octree.get(IVec3::new(1, 1, 1)), None);
+
+        // Test adding and retrieving an item
+        octree.add(42, IVec3::new(1, 1, 1));
+        assert_eq!(octree.get(IVec3::new(1, 1, 1)), Some(&42));
+        assert_eq!(octree.get(IVec3::new(0, 0, 0)), None);
+
+        // Test adding another item
+        octree.add(99, IVec3::new(-1, -1, -1));
+        assert_eq!(octree.get(IVec3::new(-1, -1, -1)), Some(&99));
+
+        // Test removing an item
+        octree.remove(IVec3::new(1, 1, 1));
+        assert_eq!(octree.get(IVec3::new(1, 1, 1)), None);
+        assert_eq!(octree.get(IVec3::new(-1, -1, -1)), Some(&99));
+    }
+    #[test]
+    fn test_add_child_count() {
+        let mut octree = SpatialOctree::new(IVec3::ZERO, 8);
+        octree.add(42, IVec3::new(1, 1, 1));
+        octree.add(43, IVec3::new(-1, -1, -1));
+        // Verify child_count is correct at root
+        assert_eq!(octree.root.child_count, 2);
     }
 }
