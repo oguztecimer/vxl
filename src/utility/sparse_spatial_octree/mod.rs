@@ -1,6 +1,8 @@
 mod tests;
+
 use crate::world::World;
 use glam::IVec3;
+use std::collections::HashMap;
 
 const MAX_RADIUS: i32 = 512;
 
@@ -25,6 +27,7 @@ impl SparseSpatialOctreeNode {
 pub struct SparseSpatialOctree {
     root: SparseSpatialOctreeNode,
     center: IVec3,
+    radius: i32,
     radius_sqr: i32,
 }
 
@@ -45,25 +48,46 @@ impl SparseSpatialOctree {
         Self {
             root,
             center,
+            radius,
             radius_sqr,
         }
     }
 
+    pub fn copy_base(&self, center: IVec3) -> Self {
+        let root = SparseSpatialOctreeNode::new(IVec3::ZERO, self.radius);
+        Self {
+            root,
+            center,
+            radius: self.radius,
+            radius_sqr: self.radius_sqr,
+        }
+    }
+
+    pub fn is_in_sphere(&self, pos: &IVec3) -> bool {
+        pos.length_squared() <= self.radius_sqr
+    }
+
     pub fn add(&mut self, position: IVec3) {
         let relative_position = position - self.center;
-        if relative_position.length_squared() > self.radius_sqr {return;}
+        if !self.is_in_sphere(&relative_position) {
+            return;
+        }
         Self::add_recursive(&mut self.root, relative_position);
     }
 
     pub fn remove(&mut self, position: IVec3) {
         let relative_position = position - self.center;
-        if relative_position.length_squared() > self.radius_sqr {return;}
+        if !self.is_in_sphere(&relative_position) {
+            return;
+        }
         Self::remove_recursive(&mut self.root, relative_position);
     }
 
     pub fn exists(&self, position: IVec3) -> bool {
         let relative_position = position - self.center;
-        if relative_position.length_squared() > self.radius_sqr {return false;}
+        if !self.is_in_sphere(&relative_position) {
+            return false;
+        }
         Self::exists_recursive(&self.root, relative_position)
     }
 
@@ -147,5 +171,10 @@ impl SparseSpatialOctree {
             | ((pos.z > center.z) as usize) << 2
     }
 
-    fn recenter(&mut self, new_center: IVec3, world: &mut World) {}
+    pub fn recenter(
+        &mut self,
+        new_center: IVec3,
+        map: &mut HashMap<IVec3, Box<crate::world::chunk::Chunk>>,
+    ) {
+    }
 }

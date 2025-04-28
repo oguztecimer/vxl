@@ -11,7 +11,6 @@ mod tests {
 
     #[test]
     fn test_new_octree_half_extent() {
-
         let octree = SparseSpatialOctree::new(IVec3::ZERO, 1);
         assert_eq!(octree.root.half_extent, 1); // 8^1 -> half_extent = 2^0
 
