@@ -75,6 +75,6 @@ impl World {
     }
 
     fn load_chunk(&mut self, pos: IVec3) -> Option<Box<Chunk>> {
-        todo!("to be implemented");
+        Chunk::new(pos)
     }
 }
