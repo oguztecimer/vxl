@@ -1,8 +1,8 @@
 mod tests;
 
-use crate::world::World;
-use glam::IVec3;
+use glam::{IVec3, Vec3, vec3};
 use std::collections::HashMap;
+use std::ops::Add;
 
 const MAX_RADIUS: i32 = 512;
 
@@ -26,9 +26,9 @@ impl SparseSpatialOctreeNode {
 
 pub struct SparseSpatialOctree {
     root: SparseSpatialOctreeNode,
-    center: IVec3,
+    pub center: IVec3,
     radius: i32,
-    radius_sqr: i32,
+    radius_sqr: f32,
 }
 
 impl SparseSpatialOctree {
@@ -43,7 +43,7 @@ impl SparseSpatialOctree {
         if radius <= 0 || (radius & (radius - 1)) > 0 {
             panic!("Radius must be a multiplier of 2");
         }
-        let radius_sqr = radius * radius;
+        let radius_sqr = (radius * radius) as f32;
         let root = SparseSpatialOctreeNode::new(IVec3::ZERO, radius);
         Self {
             root,
@@ -64,31 +64,35 @@ impl SparseSpatialOctree {
     }
 
     pub fn is_in_sphere(&self, pos: &IVec3) -> bool {
-        pos.length_squared() <= self.radius_sqr
+        pos.as_vec3().add(vec3(-0.5, -0.5, -0.5)).length_squared() <= self.radius_sqr
     }
 
-    pub fn add(&mut self, position: IVec3) {
-        let relative_position = position - self.center;
-        if !self.is_in_sphere(&relative_position) {
+    pub fn add(&mut self, position: IVec3, is_local: bool) {
+        let position = if is_local {
+            position
+        } else {
+            position - self.center
+        };
+        if !self.is_in_sphere(&position) {
             return;
         }
-        Self::add_recursive(&mut self.root, relative_position);
+        Self::add_recursive(&mut self.root, position);
     }
 
     pub fn remove(&mut self, position: IVec3) {
-        let relative_position = position - self.center;
-        if !self.is_in_sphere(&relative_position) {
+        let local_position = position - self.center;
+        if !self.is_in_sphere(&local_position) {
             return;
         }
-        Self::remove_recursive(&mut self.root, relative_position);
+        Self::remove_recursive(&mut self.root, local_position);
     }
 
     pub fn exists(&self, position: IVec3) -> bool {
-        let relative_position = position - self.center;
-        if !self.is_in_sphere(&relative_position) {
+        let local_position = position - self.center;
+        if !self.is_in_sphere(&local_position) {
             return false;
         }
-        Self::exists_recursive(&self.root, relative_position)
+        Self::exists_recursive(&self.root, local_position)
     }
 
     fn exists_recursive(node: &SparseSpatialOctreeNode, position: IVec3) -> bool {
@@ -169,12 +173,5 @@ impl SparseSpatialOctree {
         ((pos.x > center.x) as usize)
             | ((pos.y > center.y) as usize) << 1
             | ((pos.z > center.z) as usize) << 2
-    }
-
-    pub fn recenter(
-        &mut self,
-        new_center: IVec3,
-        map: &mut HashMap<IVec3, Box<crate::world::chunk::Chunk>>,
-    ) {
     }
 }

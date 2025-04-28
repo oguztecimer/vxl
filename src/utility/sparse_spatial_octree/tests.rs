@@ -37,7 +37,7 @@ mod tests {
     fn test_add_single_item() {
         let mut octree = create_test_octree();
         let position = IVec3::new(2, 2, 2);
-        octree.add(position);
+        octree.add(position, true);
 
         // Check that children were created
         assert!(octree.root.children.is_some());
@@ -91,7 +91,7 @@ mod tests {
         ];
 
         for (i, &pos) in positions.iter().enumerate() {
-            octree.add(pos);
+            octree.add(pos, true);
         }
 
         assert!(octree.root.children.is_some());
@@ -123,7 +123,7 @@ mod tests {
         let position = IVec3::new(2, 2, 2);
 
         // Add and remove item
-        octree.add(position);
+        octree.add(position, true);
         octree.remove(position);
 
         // Check that the octree is empty
@@ -142,7 +142,7 @@ mod tests {
         assert_eq!(octree.root.child_count, 0);
 
         // Add item, then try to remove from wrong position
-        octree.add(position);
+        octree.add(position, true);
         octree.remove(IVec3::new(-2, -2, -2));
 
         // Verify item still exists
@@ -186,7 +186,7 @@ mod tests {
     fn test_add_at_minimum_half_extent() {
         let mut octree = SparseSpatialOctree::new(IVec3::new(0, 0, 0), 1);
         let position = IVec3::new(0, 0, 0);
-        octree.add(position);
+        octree.add(position, true);
         assert!(octree.root.children.is_some());
         assert_eq!(octree.root.child_count, 1);
     }
@@ -199,12 +199,12 @@ mod tests {
         assert_eq!(octree.exists(IVec3::new(1, 1, 1)), false);
 
         // Test adding and retrieving an item
-        octree.add(IVec3::new(1, 1, 1));
+        octree.add(IVec3::new(1, 1, 1), true);
         assert_eq!(octree.exists(IVec3::new(1, 1, 1)), true);
         assert_eq!(octree.exists(IVec3::new(0, 0, 0)), false);
 
         // Test adding another item
-        octree.add(IVec3::new(-1, -1, -1));
+        octree.add(IVec3::new(-1, -1, -1), true);
         assert_eq!(octree.exists(IVec3::new(-1, -1, -1)), true);
 
         // Test removing an item
@@ -215,8 +215,8 @@ mod tests {
     #[test]
     fn test_add_child_count() {
         let mut octree = SparseSpatialOctree::new(IVec3::ZERO, 8);
-        octree.add(IVec3::new(1, 1, 1));
-        octree.add(IVec3::new(-1, -1, -1));
+        octree.add(IVec3::new(1, 1, 1), true);
+        octree.add(IVec3::new(-1, -1, -1), true);
         // Verify child_count is correct at root
         assert_eq!(octree.root.child_count, 2);
     }
