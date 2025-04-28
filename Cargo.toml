@@ -6,8 +6,8 @@ edition = "2024"
 [dependencies]
 ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"
+fastnoise-lite = "1.1.1"
 glam = "0.30.2"
-noise = "0.9.0"
 png = "0.17.16"
 rand = "0.9.1"
 vk-shader-macros = "0.2.10"
