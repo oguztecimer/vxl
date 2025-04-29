@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"
-dot_vox = "5.1.1"
 fastnoise-lite = "1.1.1"
 glam = "0.30.2"
 png = "0.17.16"

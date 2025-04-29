@@ -1,7 +1,6 @@
 mod tests;
 
-use glam::{IVec3, Vec3, vec3};
-use std::collections::HashMap;
+use glam::{IVec3, vec3};
 use std::ops::Add;
 
 const MAX_RADIUS: i32 = 512;
@@ -27,7 +26,7 @@ impl SparseSpatialOctreeNode {
 pub struct SparseSpatialOctree {
     root: SparseSpatialOctreeNode,
     pub center: IVec3,
-    radius: i32,
+    pub radius: i32,
     radius_sqr: f32,
 }
 
@@ -170,8 +169,8 @@ impl SparseSpatialOctree {
     }
 
     fn get_child_index(pos: IVec3, center: IVec3) -> usize {
-        ((pos.x > center.x) as usize)
-            | ((pos.y > center.y) as usize) << 1
-            | ((pos.z > center.z) as usize) << 2
+        ((pos.x >= center.x) as usize)
+            | ((pos.y >= center.y) as usize) << 1
+            | ((pos.z >= center.z) as usize) << 2
     }
 }

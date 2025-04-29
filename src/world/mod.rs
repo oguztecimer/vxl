@@ -1,6 +1,6 @@
 use crate::utility::sparse_spatial_octree::SparseSpatialOctree;
 use crate::world::chunk::Chunk;
-use glam::{IVec3, Vec3};
+use glam::{IVec3, Vec3, ivec3};
 use std::collections::HashMap;
 
 pub(crate) mod chunk;
@@ -13,21 +13,39 @@ pub struct World {
 }
 
 impl World {
-    pub fn new() -> Self {
+    pub fn new(radius: i32) -> Self {
         let last_map_center = IVec3::ZERO;
         let last_player_pos = IVec3::ZERO;
         let loaded_chunks: HashMap<IVec3, Option<Box<Chunk>>> = HashMap::new();
-        let visible_map = SparseSpatialOctree::new(last_map_center, 256);
-        Self {
+        let visible_map = SparseSpatialOctree::new(last_map_center, radius);
+        let mut chunk = Self {
             loaded_chunks,
             visible_map,
             last_map_center,
             last_player_pos,
+        };
+        chunk.initialize_map(radius);
+        chunk
+    }
+
+    #[inline]
+    fn initialize_map(&mut self, radius: i32) {
+        for x in -radius..radius + 1 {
+            for y in -radius..radius + 1 {
+                for z in -radius..radius + 1 {
+                    let key = ivec3(x, y, z);
+                    let chunk = self.load_chunk(key);
+                    if self.visible_map.is_in_sphere(&key) {
+                        self.visible_map.add(key, false);
+                        self.loaded_chunks.insert(key, chunk);
+                    }
+                }
+            }
         }
     }
 
     pub fn on_player_moved(&mut self, pos: Vec3) {
-        let pos = pos.ceil().as_ivec3();
+        let pos = pos.floor().as_ivec3();
         if self.last_player_pos == pos {
             return;
         };
