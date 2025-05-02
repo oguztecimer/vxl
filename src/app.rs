@@ -2,8 +2,8 @@ use crate::renderer::Renderer;
 use crate::renderer::images::transition_image_layout;
 use ash::vk::{
     ClearColorValue, CommandBufferResetFlags, CommandBufferSubmitInfo, Fence, ImageAspectFlags,
-    ImageLayout, ImageSubresourceRange, PipelineStageFlags2, PresentInfoKHR,
-    SemaphoreSubmitInfo, SubmitInfo2,
+    ImageLayout, ImageSubresourceRange, PipelineStageFlags2, PresentInfoKHR, SemaphoreSubmitInfo,
+    SubmitInfo2,
 };
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -133,13 +133,16 @@ impl App {
         let clear_color = ClearColorValue {
             float32: [1.0, 0.0, 0.0, 1.0],
         };
-        let clear_range = ImageSubresourceRange::default().aspect_mask(ImageAspectFlags::COLOR);
+        let clear_range = ImageSubresourceRange::default()
+            .aspect_mask(ImageAspectFlags::COLOR)
+            .level_count(1)
+            .layer_count(1);
         let clear_ranges = [clear_range];
         unsafe {
             self.renderer().device.logical.cmd_clear_color_image(
                 command_buffer,
                 self.renderer().swapchain.images[image_index],
-                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                ImageLayout::GENERAL,
                 &clear_color,
                 &clear_ranges,
             );
@@ -206,62 +209,6 @@ impl App {
         }
         .expect("Could not present queue");
         self.renderer_mut().commands.increment_frame();
-
-        //
-        //
-        // self.renderer().record_command_buffer(image_index as usize);
-        // let command_buffers = [self.renderer().command_buffer];
-        // let signal_semaphores = [self.renderer().sync.render_finished_semaphore];
-        // let wait_semaphores = [self.renderer().sync.image_available_semaphore];
-        // let queue = self.renderer().device.queues.graphics.1;
-        // self.renderer()
-        //     .buffers
-        //     .update_uniform_buffer(image_index, self.renderer().swapchain.extent);
-        // let submit_info = SubmitInfo::default()
-        //     .command_buffers(&command_buffers)
-        //     .signal_semaphores(&signal_semaphores)
-        //     .wait_semaphores(&wait_semaphores)
-        //     .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT]);
-        // unsafe {
-        //     self.renderer().device.logical.queue_submit(
-        //         queue,
-        //         &[submit_info],
-        //         self.renderer().sync.in_flight_fence,
-        //     )
-        // }
-        // .expect("Could not submit draw command buffer");
-        // let swap_chains = [self.renderer().swapchain.handle];
-        // let image_indices = [image_index];
-        // let present_info = PresentInfoKHR::default()
-        //     .wait_semaphores(&signal_semaphores)
-        //     .swapchains(&swap_chains)
-        //     .image_indices(&image_indices);
-        // let result = {
-        //     unsafe {
-        //         self.renderer()
-        //             .swapchain
-        //             .loader
-        //             .queue_present(queue, &present_info)
-        //     }
-        // };
-        // match result {
-        //     Ok(_) => (),
-        //     Err(err) => {
-        //         if !self.handle_error(err) {
-        //             return;
-        //         }
-        //     }
-        // }
-        // unsafe {
-        //     self.renderer()
-        //         .device
-        //         .logical
-        //         .wait_for_fences(&fences, true, u64::MAX)
-        // }
-        // .expect("Error in wait for inflight fence");
-        // if !self.close_requested {
-        //     self.window().request_redraw();
-        // }
     }
 
     fn recreate_swap_chain(&mut self) -> bool {

@@ -1,8 +1,8 @@
 use crate::renderer::device::Device;
 use crate::renderer::surface::Surface;
 use ash::vk::{
-    CompositeAlphaFlagsKHR, Image, ImageAspectFlags, ImageSubresourceRange,
-    ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, PresentModeKHR, SharingMode,
+    CompositeAlphaFlagsKHR, Image, ImageAspectFlags, ImageSubresourceRange, ImageUsageFlags,
+    ImageView, ImageViewCreateInfo, ImageViewType, PresentModeKHR, SharingMode,
     SwapchainCreateInfoKHR, SwapchainKHR,
 };
 
@@ -11,8 +11,6 @@ pub struct Swapchain {
     pub loader: ash::khr::swapchain::Device,
     pub image_views: Vec<ImageView>,
     pub images: Vec<Image>,
-    //pub extent: Extent2D,
-    //pub image_format: Format,
 }
 
 impl Swapchain {
@@ -54,7 +52,7 @@ impl Swapchain {
             .image_color_space(color_space)
             .image_extent(extent)
             .image_array_layers(1)
-            .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
+            .image_usage(ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_DST)
             .image_sharing_mode(SharingMode::EXCLUSIVE)
             .queue_family_indices(&queue_family_indices_array)
             .pre_transform(surface_capabilities.current_transform)
@@ -86,8 +84,6 @@ impl Swapchain {
             loader,
             images,
             image_views,
-            //extent,
-            //image_format,
         }
     }
 

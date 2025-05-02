@@ -25,7 +25,9 @@ pub fn transition_image_layout(
                     ImageAspectFlags::DEPTH
                 } else {
                     ImageAspectFlags::COLOR
-                }),
+                })
+                .level_count(1)
+                .layer_count(1),
         )
         .image(image);
     let image_barriers = [image_barrier];

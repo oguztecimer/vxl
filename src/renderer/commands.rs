@@ -51,8 +51,8 @@ impl Commands {
             frame_number: 0,
         }
     }
-    
-    pub fn increment_frame(&mut self){
+
+    pub fn increment_frame(&mut self) {
         self.frame_number += 1;
     }
     pub fn get_current_frame(&self) -> &FrameData {
