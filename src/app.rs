@@ -1,6 +1,10 @@
 use crate::renderer::Renderer;
-use ash::vk;
-use ash::vk::{CommandBufferResetFlags, Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use crate::renderer::images::transition_image_layout;
+use ash::vk::{
+    ClearColorValue, CommandBufferResetFlags, CommandBufferSubmitInfo, Fence, ImageAspectFlags,
+    ImageLayout, ImageSubresourceRange, PipelineStageFlags2, PresentInfoKHR,
+    SemaphoreSubmitInfo, SubmitInfo2,
+};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -16,10 +20,12 @@ pub struct App {
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = event_loop
-            .create_window(WindowAttributes::default()
-                .with_title("vxl")
-                .with_inner_size(winit::dpi::LogicalSize::new(800.0, 800.0))
-            ).unwrap();
+            .create_window(
+                WindowAttributes::default()
+                    .with_title("vxl")
+                    .with_inner_size(winit::dpi::LogicalSize::new(800.0, 800.0)),
+            )
+            .unwrap();
         self.renderer = Some(Renderer::new(&window));
         self.window = Some(window);
         self.window().request_redraw();
@@ -34,11 +40,15 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => {
                 self.close_requested = true;
-                unsafe { self.renderer().device.logical.device_wait_idle()
-                    .expect("Could not wait for device idle");
-                    
+                unsafe {
+                    self.renderer()
+                        .device
+                        .logical
+                        .device_wait_idle()
+                        .expect("Could not wait for device idle");
+
                     self.renderer().device.logical.reset_command_buffer(
-                        self.renderer().command_buffer,
+                        self.renderer().commands.get_current_frame().command_buffer,
                         CommandBufferResetFlags::default(),
                     )
                 }
@@ -63,97 +73,195 @@ impl App {
     fn renderer(&self) -> &Renderer {
         self.renderer.as_ref().unwrap()
     }
-    fn window(&self) -> &Window { self.window.as_ref().unwrap() }
+    fn window(&self) -> &Window {
+        self.window.as_ref().unwrap()
+    }
 
     fn draw_frame(&mut self) {
         if self.close_requested {
             return;
         }
-        let fences = [self.renderer().sync.in_flight_fence];
-        unsafe { self.renderer().device.logical.reset_fences(&fences) }
-            .expect("Error in reset inflight fence");
-        let mut image_index = None;
-        let result = {
+        let fences = [self.renderer().commands.get_current_frame().render_fence];
+        unsafe {
+            self.renderer()
+                .device
+                .logical
+                .wait_for_fences(&fences, true, 1000000000)
+                .expect("Could not wait for fences");
+            self.renderer()
+                .device
+                .logical
+                .reset_fences(&fences)
+                .expect("Could not reset fences");
+        }
+
+        let image_index = {
             unsafe {
-                self.renderer()
-                    .swapchain.loader
-                    .acquire_next_image(
-                        self.renderer().swapchain.handle,
-                        u64::MAX,
-                        self.renderer().sync.image_available_semaphore,
-                        Fence::null(),
-                    )
-            }
-        };
-        match result {
-            Ok((index, _)) => {
-                image_index = Some(index);
-            }
-            Err(err) => {
-                if !self.handle_error(err) {
-                    return;
-                }
+                self.renderer().swapchain.loader.acquire_next_image(
+                    self.renderer().swapchain.handle,
+                    1000000000,
+                    self.renderer()
+                        .commands
+                        .get_current_frame()
+                        .swapchain_semaphore,
+                    Fence::null(),
+                )
             }
         }
-        let image_index = image_index.unwrap();
+        .expect("Could not acquire next image")
+        .0 as usize;
+
+        let command_buffer = self.renderer().commands.get_current_frame().command_buffer;
         unsafe {
-            self.renderer().device.logical.reset_command_buffer(
-                self.renderer().command_buffer,
-                CommandBufferResetFlags::default(),
-            )
+            self.renderer()
+                .device
+                .logical
+                .reset_command_buffer(command_buffer, CommandBufferResetFlags::default())
         }
         .expect("Could not reset command buffer");
-        self.renderer().record_command_buffer(image_index as usize);
-        let command_buffers = [self.renderer().command_buffer];
-        let signal_semaphores = [self.renderer().sync.render_finished_semaphore];
-        let wait_semaphores = [self.renderer().sync.image_available_semaphore];
-        let queue = self.renderer().device.queues.graphics.1;
-        self.renderer().buffers.update_uniform_buffer(image_index,self.renderer().swapchain.extent);
-        let submit_info = SubmitInfo::default()
-            .command_buffers(&command_buffers)
-            .signal_semaphores(&signal_semaphores)
-            .wait_semaphores(&wait_semaphores)
-            .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT]);
+        self.renderer()
+            .commands
+            .begin_command_buffer(&self.renderer().device.logical);
+        transition_image_layout(
+            &self.renderer().device.logical,
+            command_buffer,
+            self.renderer().swapchain.images[image_index],
+            ImageLayout::UNDEFINED,
+            ImageLayout::GENERAL,
+        );
+
+        let clear_color = ClearColorValue {
+            float32: [1.0, 0.0, 0.0, 1.0],
+        };
+        let clear_range = ImageSubresourceRange::default().aspect_mask(ImageAspectFlags::COLOR);
+        let clear_ranges = [clear_range];
         unsafe {
-            self.renderer().device.logical.queue_submit(
-                queue,
-                &[submit_info],
-                self.renderer().sync.in_flight_fence,
+            self.renderer().device.logical.cmd_clear_color_image(
+                command_buffer,
+                self.renderer().swapchain.images[image_index],
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                &clear_color,
+                &clear_ranges,
+            );
+        }
+        transition_image_layout(
+            &self.renderer().device.logical,
+            command_buffer,
+            self.renderer().swapchain.images[image_index],
+            ImageLayout::GENERAL,
+            ImageLayout::PRESENT_SRC_KHR,
+        );
+        self.renderer()
+            .commands
+            .end_command_buffer(&self.renderer().device.logical);
+
+        let command_buffer_submit_infos =
+            [CommandBufferSubmitInfo::default().command_buffer(command_buffer)];
+        let wait_semaphore_infos = [SemaphoreSubmitInfo::default()
+            .semaphore(
+                self.renderer()
+                    .commands
+                    .get_current_frame()
+                    .swapchain_semaphore,
+            )
+            .stage_mask(PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)];
+        let signal_semaphore_infos = [SemaphoreSubmitInfo::default()
+            .semaphore(
+                self.renderer()
+                    .commands
+                    .get_current_frame()
+                    .render_semaphore,
+            )
+            .stage_mask(PipelineStageFlags2::ALL_GRAPHICS)];
+        let submit_infos = [SubmitInfo2::default()
+            .command_buffer_infos(&command_buffer_submit_infos)
+            .wait_semaphore_infos(&wait_semaphore_infos)
+            .signal_semaphore_infos(&signal_semaphore_infos)];
+
+        unsafe {
+            self.renderer().device.logical.queue_submit2(
+                self.renderer().device.queues.graphics.1,
+                &submit_infos,
+                self.renderer().commands.get_current_frame().render_fence,
             )
         }
-        .expect("Could not submit draw command buffer");
-        let swap_chains = [self.renderer().swapchain.handle];
-        let image_indices = [image_index];
+        .expect("Could not submit queue");
+        let swapchains = [self.renderer().swapchain.handle];
+        let image_indices = [image_index as u32];
+        let wait_semaphores = [self
+            .renderer()
+            .commands
+            .get_current_frame()
+            .render_semaphore];
         let present_info = PresentInfoKHR::default()
-            .wait_semaphores(&signal_semaphores)
-            .swapchains(&swap_chains)
+            .swapchains(&swapchains)
+            .wait_semaphores(&wait_semaphores)
             .image_indices(&image_indices);
-        let result = {
-            unsafe { self.renderer().swapchain.loader.queue_present(queue, &present_info) }
-        };
-        match result {
-            Ok(_) => (),
-            Err(err) => {
-                if !self.handle_error(err) {
-                    return;
-                }
-            }
-        }
-        unsafe { self.renderer().device.logical.wait_for_fences(&fences, true, u64::MAX) }
-        .expect("Error in wait for inflight fence");
-        if !self.close_requested {
-            self.window().request_redraw();
-        }
-    }
 
-    fn handle_error(&mut self, err: vk::Result) -> bool {
-        {
-            if err == vk::Result::ERROR_OUT_OF_DATE_KHR {
-                self.recreate_swap_chain()
-            } else {
-                panic!("{:?}", err);
-            }
+        unsafe {
+            self.renderer()
+                .swapchain
+                .loader
+                .queue_present(self.renderer().device.queues.graphics.1, &present_info)
         }
+        .expect("Could not present queue");
+        self.renderer_mut().commands.increment_frame();
+
+        //
+        //
+        // self.renderer().record_command_buffer(image_index as usize);
+        // let command_buffers = [self.renderer().command_buffer];
+        // let signal_semaphores = [self.renderer().sync.render_finished_semaphore];
+        // let wait_semaphores = [self.renderer().sync.image_available_semaphore];
+        // let queue = self.renderer().device.queues.graphics.1;
+        // self.renderer()
+        //     .buffers
+        //     .update_uniform_buffer(image_index, self.renderer().swapchain.extent);
+        // let submit_info = SubmitInfo::default()
+        //     .command_buffers(&command_buffers)
+        //     .signal_semaphores(&signal_semaphores)
+        //     .wait_semaphores(&wait_semaphores)
+        //     .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT]);
+        // unsafe {
+        //     self.renderer().device.logical.queue_submit(
+        //         queue,
+        //         &[submit_info],
+        //         self.renderer().sync.in_flight_fence,
+        //     )
+        // }
+        // .expect("Could not submit draw command buffer");
+        // let swap_chains = [self.renderer().swapchain.handle];
+        // let image_indices = [image_index];
+        // let present_info = PresentInfoKHR::default()
+        //     .wait_semaphores(&signal_semaphores)
+        //     .swapchains(&swap_chains)
+        //     .image_indices(&image_indices);
+        // let result = {
+        //     unsafe {
+        //         self.renderer()
+        //             .swapchain
+        //             .loader
+        //             .queue_present(queue, &present_info)
+        //     }
+        // };
+        // match result {
+        //     Ok(_) => (),
+        //     Err(err) => {
+        //         if !self.handle_error(err) {
+        //             return;
+        //         }
+        //     }
+        // }
+        // unsafe {
+        //     self.renderer()
+        //         .device
+        //         .logical
+        //         .wait_for_fences(&fences, true, u64::MAX)
+        // }
+        // .expect("Error in wait for inflight fence");
+        // if !self.close_requested {
+        //     self.window().request_redraw();
+        // }
     }
 
     fn recreate_swap_chain(&mut self) -> bool {
