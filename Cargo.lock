@@ -1320,6 +1320,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "vk-mem"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cb12b79bcec57a3334d0284f1364c1846f378bb47df9779c6dbfcfc245c9404"
+dependencies = [
+ "ash",
+ "bitflags 2.9.0",
+ "cc",
+]
+
+[[package]]
 name = "vk-shader-macros"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1339,6 +1350,7 @@ dependencies = [
  "ash-window",
  "glam",
  "imgui",
+ "vk-mem",
  "vk-shader-macros",
  "winit",
 ]
