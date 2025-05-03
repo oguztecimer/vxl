@@ -1,9 +1,9 @@
 use crate::renderer::Renderer;
-use crate::renderer::images::transition_image_layout;
+use crate::renderer::images::{copy_image_to_image, transition_image_layout};
 use ash::vk::{
-    ClearColorValue, CommandBufferResetFlags, CommandBufferSubmitInfo, Fence, ImageAspectFlags,
-    ImageLayout, ImageSubresourceRange, PipelineStageFlags2, PresentInfoKHR, SemaphoreSubmitInfo,
-    SubmitInfo2,
+    ClearColorValue, CommandBufferResetFlags, CommandBufferSubmitInfo, Extent2D, Fence,
+    ImageAspectFlags, ImageLayout, ImageSubresourceRange, PipelineStageFlags2, PresentInfoKHR,
+    SemaphoreSubmitInfo, SubmitInfo2,
 };
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -122,14 +122,15 @@ impl App {
         self.renderer()
             .commands
             .begin_command_buffer(&self.renderer().device.logical);
+
         transition_image_layout(
             &self.renderer().device.logical,
             command_buffer,
-            self.renderer().swapchain.images[image_index],
+            self.renderer().swapchain.draw_image.image,
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
         );
-
+        //DRAW BACKGROUND
         let clear_color = ClearColorValue {
             float32: [1.0, 0.0, 0.0, 1.0],
         };
@@ -141,17 +142,40 @@ impl App {
         unsafe {
             self.renderer().device.logical.cmd_clear_color_image(
                 command_buffer,
-                self.renderer().swapchain.images[image_index],
+                self.renderer().swapchain.draw_image.image,
                 ImageLayout::GENERAL,
                 &clear_color,
                 &clear_ranges,
             );
         }
+        //
+        transition_image_layout(
+            &self.renderer().device.logical,
+            command_buffer,
+            self.renderer().swapchain.draw_image.image,
+            ImageLayout::GENERAL,
+            ImageLayout::TRANSFER_SRC_OPTIMAL,
+        );
         transition_image_layout(
             &self.renderer().device.logical,
             command_buffer,
             self.renderer().swapchain.images[image_index],
-            ImageLayout::GENERAL,
+            ImageLayout::UNDEFINED,
+            ImageLayout::TRANSFER_DST_OPTIMAL,
+        );
+        copy_image_to_image(
+            &self.renderer().device.logical,
+            command_buffer,
+            self.renderer().swapchain.draw_image.image,
+            self.renderer().swapchain.images[image_index],
+            self.renderer().swapchain.extent,
+            self.renderer().swapchain.extent,
+        );
+        transition_image_layout(
+            &self.renderer().device.logical,
+            command_buffer,
+            self.renderer().swapchain.images[image_index],
+            ImageLayout::TRANSFER_DST_OPTIMAL,
             ImageLayout::PRESENT_SRC_KHR,
         );
         self.renderer()

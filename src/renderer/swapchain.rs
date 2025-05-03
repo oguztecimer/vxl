@@ -1,20 +1,29 @@
 use crate::renderer::device::Device;
+use crate::renderer::images::AllocatedImage;
 use crate::renderer::surface::Surface;
 use ash::vk::{
-    CompositeAlphaFlagsKHR, Image, ImageAspectFlags, ImageSubresourceRange, ImageUsageFlags,
-    ImageView, ImageViewCreateInfo, ImageViewType, PresentModeKHR, SharingMode,
-    SwapchainCreateInfoKHR, SwapchainKHR,
+    CompositeAlphaFlagsKHR, Extent2D, Extent3D, Format, Image, ImageAspectFlags,
+    ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType,
+    PresentModeKHR, SharingMode, SwapchainCreateInfoKHR, SwapchainKHR,
 };
+use vk_mem::Allocator;
 
 pub struct Swapchain {
     pub handle: SwapchainKHR,
     pub loader: ash::khr::swapchain::Device,
     pub image_views: Vec<ImageView>,
     pub images: Vec<Image>,
+    pub extent: Extent2D,
+    pub draw_image: AllocatedImage,
 }
 
 impl Swapchain {
-    pub fn new(instance: &ash::Instance, device: &Device, surface: &Surface) -> Self {
+    pub fn new(
+        instance: &ash::Instance,
+        device: &Device,
+        surface: &Surface,
+        allocator: &Allocator,
+    ) -> Self {
         let loader = ash::khr::swapchain::Device::new(instance, &device.logical);
         let surface_present_modes = unsafe {
             surface
@@ -79,16 +88,35 @@ impl Swapchain {
                 unsafe { device.logical.create_image_view(&info, None) }.unwrap()
             })
             .collect();
+        let extent3d = Extent3D {
+            width: surface_capabilities.current_extent.width,
+            height: surface_capabilities.current_extent.height,
+            depth: 1,
+        };
+        let draw_image = AllocatedImage::new(
+            &device.logical,
+            allocator,
+            Format::R16G16B16A16_SFLOAT,
+            extent3d,
+            ImageUsageFlags::TRANSFER_SRC
+                | ImageUsageFlags::TRANSFER_DST
+                | ImageUsageFlags::STORAGE
+                | ImageUsageFlags::COLOR_ATTACHMENT,
+            ImageAspectFlags::COLOR,
+        );
         Self {
             handle,
             loader,
             images,
             image_views,
+            extent,
+            draw_image,
         }
     }
 
-    pub fn cleanup(&self, logical_device: &ash::Device) {
+    pub fn cleanup(&mut self, logical_device: &ash::Device, allocator: &Allocator) {
         unsafe {
+            self.draw_image.cleanup(logical_device, allocator);
             for view in &self.image_views {
                 logical_device.destroy_image_view(*view, None)
             }
