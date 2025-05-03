@@ -4,6 +4,7 @@ pub mod images;
 mod instance;
 mod surface;
 mod swapchain;
+mod pipelines;
 
 use crate::renderer::commands::Commands;
 use crate::renderer::device::Device;
