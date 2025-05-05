@@ -1,15 +1,21 @@
 mod commands;
+mod descriptors;
 mod device;
 pub mod images;
 mod instance;
 mod surface;
 mod swapchain;
-mod pipelines;
 
 use crate::renderer::commands::Commands;
+use crate::renderer::descriptors::{DescriptionLayoutBuilder, DescriptorAllocator, Descriptors};
 use crate::renderer::device::Device;
 use crate::renderer::swapchain::*;
+use ash::vk::{
+    DescriptorImageInfo, DescriptorSetLayoutCreateFlags, DescriptorType, ImageLayout,
+    ShaderStageFlags, WriteDescriptorSet,
+};
 use ash::{Entry, Instance};
+use log::log;
 use vk_mem::{Allocator, AllocatorCreateFlags, AllocatorCreateInfo};
 use winit::window::Window;
 
@@ -20,6 +26,7 @@ pub struct Renderer {
     pub allocator: Option<Allocator>,
     pub swapchain: Swapchain,
     pub commands: Commands,
+    pub descriptors: Descriptors,
 }
 
 impl Renderer {
@@ -31,14 +38,15 @@ impl Renderer {
         let allocator = Self::create_allocator(&instance.handle, &device);
         let swapchain = Swapchain::new(&instance.handle, &device, &surface, &allocator);
         let commands = Commands::new(&device.logical, device.queues.graphics.0);
-        let allocator = Some(allocator);
+        let descriptors = Descriptors::new(&device.logical, swapchain.draw_image.image_view);
         Renderer {
             instance,
             surface,
             device,
-            allocator,
+            allocator: Some(allocator),
             swapchain,
             commands,
+            descriptors,
         }
     }
 

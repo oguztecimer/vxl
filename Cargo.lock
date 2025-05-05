@@ -1350,6 +1350,7 @@ dependencies = [
  "ash-window",
  "glam",
  "imgui",
+ "log",
  "vk-mem",
  "vk-shader-macros",
  "winit",
