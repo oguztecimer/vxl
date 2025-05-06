@@ -13,7 +13,7 @@ pub struct Descriptors {
     draw_image_descriptor_layout: DescriptorSetLayout,
 }
 
-pub struct DescriptionLayoutBuilder<'a> {
+pub struct DescriptorLayoutBuilder<'a> {
     bindings: Vec<DescriptorSetLayoutBinding<'a>>,
 }
 
@@ -22,14 +22,14 @@ impl Descriptors {
         let sizes = [(DescriptorType::STORAGE_IMAGE, 1.0)];
         let global_descriptor_allocator =
             DescriptorAllocator::new(logical_device, 10, Vec::from(sizes));
-        let mut descriptor_layout_builder = DescriptionLayoutBuilder::new();
+        let mut descriptor_layout_builder = DescriptorLayoutBuilder::new();
         descriptor_layout_builder.add_binding(
             0,
             DescriptorType::STORAGE_IMAGE,
             ShaderStageFlags::COMPUTE,
         );
         let draw_image_descriptor_layout = descriptor_layout_builder
-            .get_layout(logical_device, DescriptorSetLayoutCreateFlags::empty());
+            .get_layout(logical_device, DescriptorSetLayoutCreateFlags::default());
         let draw_image_descriptor_set =
             global_descriptor_allocator.allocate(logical_device, draw_image_descriptor_layout);
         let image_infos = [DescriptorImageInfo::default()
@@ -48,10 +48,15 @@ impl Descriptors {
         }
     }
 
-    pub fn cleanup(&self) {}
+    pub fn cleanup(&self,logical_device: &Device) {
+        unsafe {
+            logical_device.destroy_descriptor_set_layout(self.draw_image_descriptor_layout,None);
+            self.global_descriptor_allocator.destroy_pool(logical_device);
+        }
+    }
 }
 
-impl DescriptionLayoutBuilder<'_> {
+impl DescriptorLayoutBuilder<'_> {
     pub fn new() -> Self {
         Self { bindings: vec![] }
     }
@@ -65,7 +70,8 @@ impl DescriptionLayoutBuilder<'_> {
             DescriptorSetLayoutBinding::default()
                 .binding(binding)
                 .descriptor_type(descriptor_type)
-                .stage_flags(shader_stage_flags),
+                .stage_flags(shader_stage_flags)
+                .descriptor_count(1),
         );
     }
 

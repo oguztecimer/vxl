@@ -7,7 +7,7 @@ mod surface;
 mod swapchain;
 
 use crate::renderer::commands::Commands;
-use crate::renderer::descriptors::{DescriptionLayoutBuilder, DescriptorAllocator, Descriptors};
+use crate::renderer::descriptors::{DescriptorLayoutBuilder, DescriptorAllocator, Descriptors};
 use crate::renderer::device::Device;
 use crate::renderer::swapchain::*;
 use ash::vk::{
@@ -85,6 +85,7 @@ impl Renderer {
             .cleanup(&self.device.logical, self.allocator.as_ref().unwrap());
         self.commands.cleanup(&self.device.logical);
         self.allocator.take();
+        self.descriptors.cleanup(&self.device.logical);
         self.device.cleanup();
         self.surface.cleanup();
         self.instance.cleanup();
