@@ -1,9 +1,9 @@
 use crate::renderer::Renderer;
 use crate::renderer::images::{copy_image_to_image, transition_image_layout};
 use ash::vk::{
-    ClearColorValue, CommandBufferResetFlags, CommandBufferSubmitInfo, Extent2D, Fence,
-    ImageAspectFlags, ImageLayout, ImageSubresourceRange, PipelineStageFlags2, PresentInfoKHR,
-    SemaphoreSubmitInfo, SubmitInfo2,
+    ClearColorValue, CommandBufferResetFlags, CommandBufferSubmitInfo, Fence, ImageAspectFlags,
+    ImageLayout, ImageSubresourceRange, PipelineStageFlags2, PresentInfoKHR, SemaphoreSubmitInfo,
+    SubmitInfo2,
 };
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;

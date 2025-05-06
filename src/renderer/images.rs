@@ -6,14 +6,13 @@ use ash::vk::{
     ImageView, ImageViewCreateInfo, ImageViewType, MemoryPropertyFlags, PipelineStageFlags2,
     SampleCountFlags,
 };
-use std::alloc::alloc;
 use vk_mem::{Alloc, Allocation, AllocationCreateInfo, Allocator, MemoryUsage};
 
 pub struct AllocatedImage {
     pub image: Image,
     pub image_view: ImageView,
-    pub extent3d: Extent3D,
-    pub format: Format,
+    //pub extent3d: Extent3D,
+    //pub format: Format,
     pub allocation: Allocation,
 }
 
@@ -32,8 +31,8 @@ impl AllocatedImage {
         Self {
             image,
             image_view,
-            extent3d,
-            format,
+            //extent3d,
+            //format,
             allocation,
         }
     }

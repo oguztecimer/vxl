@@ -7,15 +7,10 @@ mod surface;
 mod swapchain;
 
 use crate::renderer::commands::Commands;
-use crate::renderer::descriptors::{DescriptorLayoutBuilder, DescriptorAllocator, Descriptors};
+use crate::renderer::descriptors::Descriptors;
 use crate::renderer::device::Device;
 use crate::renderer::swapchain::*;
-use ash::vk::{
-    DescriptorImageInfo, DescriptorSetLayoutCreateFlags, DescriptorType, ImageLayout,
-    ShaderStageFlags, WriteDescriptorSet,
-};
 use ash::{Entry, Instance};
-use log::log;
 use vk_mem::{Allocator, AllocatorCreateFlags, AllocatorCreateInfo};
 use winit::window::Window;
 

@@ -1,11 +1,9 @@
-use crate::renderer::swapchain::Swapchain;
 use ash::Device;
 use ash::vk::{
     DescriptorImageInfo, DescriptorPool, DescriptorPoolCreateFlags, DescriptorPoolCreateInfo,
-    DescriptorPoolResetFlags, DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo,
-    DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutCreateFlags,
-    DescriptorSetLayoutCreateInfo, DescriptorType, ImageLayout, ImageView, ShaderStageFlags,
-    WriteDescriptorSet,
+    DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout,
+    DescriptorSetLayoutBinding, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo,
+    DescriptorType, ImageLayout, ImageView, ShaderStageFlags, WriteDescriptorSet,
 };
 
 pub struct Descriptors {
@@ -48,10 +46,11 @@ impl Descriptors {
         }
     }
 
-    pub fn cleanup(&self,logical_device: &Device) {
+    pub fn cleanup(&self, logical_device: &Device) {
         unsafe {
-            logical_device.destroy_descriptor_set_layout(self.draw_image_descriptor_layout,None);
-            self.global_descriptor_allocator.destroy_pool(logical_device);
+            logical_device.destroy_descriptor_set_layout(self.draw_image_descriptor_layout, None);
+            self.global_descriptor_allocator
+                .destroy_pool(logical_device);
         }
     }
 }
@@ -87,9 +86,9 @@ impl DescriptorLayoutBuilder<'_> {
             .expect("Could not create descriptor layout")
     }
 
-    pub fn clear(&mut self) {
-        self.bindings.clear();
-    }
+    // pub fn clear(&mut self) {
+    //     self.bindings.clear();
+    // }
 }
 
 pub struct DescriptorAllocator {
@@ -119,12 +118,12 @@ impl DescriptorAllocator {
         Self { pool }
     }
 
-    pub fn clear_descriptors(&self, logical_device: &Device) {
-        unsafe {
-            logical_device.reset_descriptor_pool(self.pool, DescriptorPoolResetFlags::empty())
-        }
-        .expect("Could not reset descriptor pool")
-    }
+    // pub fn clear_descriptors(&self, logical_device: &Device) {
+    //     unsafe {
+    //         logical_device.reset_descriptor_pool(self.pool, DescriptorPoolResetFlags::empty())
+    //     }
+    //     .expect("Could not reset descriptor pool")
+    // }
 
     pub fn destroy_pool(&self, logical_device: &Device) {
         unsafe { logical_device.destroy_descriptor_pool(self.pool, None) };
