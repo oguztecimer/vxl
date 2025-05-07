@@ -76,6 +76,7 @@ impl Device {
             }
         }
         let physical = selected_physical_device.unwrap();
+
         let logical = Self::create_logical_device(
             selected_graphic_index,
             selected_transfer_index,
@@ -107,7 +108,8 @@ impl Device {
 
         let device_extension_names_raw = [
             ash::khr::swapchain::NAME.as_ptr(),
-            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            ash::khr::synchronization2::NAME.as_ptr(),
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
             ash::khr::portability_subset::NAME.as_ptr(),
         ];
         let mut device_queue_create_info_vec = vec![device_queue_create_info_graphic];
@@ -126,8 +128,9 @@ impl Device {
         let create_device_info = DeviceCreateInfo::default()
             .queue_create_infos(&device_queue_create_info_vec)
             .enabled_extension_names(&device_extension_names_raw)
-            .push_next(&mut vulkan13_features)
-            .push_next(&mut vulkan12_features);
+            .push_next(&mut vulkan12_features)
+            .push_next(&mut vulkan13_features);
+
         unsafe { instance.create_device(physical_device, &create_device_info, None) }
             .expect("Could not create logical device!")
     }
