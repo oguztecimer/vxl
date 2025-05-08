@@ -1,3 +1,4 @@
+use crate::renderer::swapchain::Swapchain;
 use ash::Device;
 use ash::vk::{
     DescriptorImageInfo, DescriptorPool, DescriptorPoolCreateFlags, DescriptorPoolCreateInfo,
@@ -7,8 +8,9 @@ use ash::vk::{
 };
 
 pub struct Descriptors {
-    global_descriptor_allocator: DescriptorAllocator,
-    draw_image_descriptor_layout: DescriptorSetLayout,
+    pub global_descriptor_allocator: DescriptorAllocator,
+    pub draw_image_descriptor_layout: DescriptorSetLayout,
+    pub draw_image_descriptor_set: DescriptorSet,
 }
 
 pub struct DescriptorLayoutBuilder<'a> {
@@ -16,7 +18,7 @@ pub struct DescriptorLayoutBuilder<'a> {
 }
 
 impl Descriptors {
-    pub fn new(logical_device: &Device, image_view: ImageView) -> Self {
+    pub fn new(logical_device: &Device, swapchain: &Swapchain) -> Self {
         let sizes = [(DescriptorType::STORAGE_IMAGE, 1.0)];
         let global_descriptor_allocator =
             DescriptorAllocator::new(logical_device, 10, Vec::from(sizes));
@@ -30,20 +32,28 @@ impl Descriptors {
             .get_layout(logical_device, DescriptorSetLayoutCreateFlags::default());
         let draw_image_descriptor_set =
             global_descriptor_allocator.allocate(logical_device, draw_image_descriptor_layout);
+
+        let result = Self {
+            global_descriptor_allocator,
+            draw_image_descriptor_layout,
+            draw_image_descriptor_set,
+        };
+        result.update(logical_device, swapchain.draw_image.image_view);
+
+        result
+    }
+
+    pub fn update(&self, logical_device: &Device, image_view: ImageView) {
         let image_infos = [DescriptorImageInfo::default()
             .image_layout(ImageLayout::GENERAL)
             .image_view(image_view)];
         let draw_image_writes = [WriteDescriptorSet::default()
             .dst_binding(0)
-            .dst_set(draw_image_descriptor_set)
+            .dst_set(self.draw_image_descriptor_set)
             .descriptor_count(1)
             .descriptor_type(DescriptorType::STORAGE_IMAGE)
             .image_info(&image_infos)];
         unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
-        Self {
-            global_descriptor_allocator,
-            draw_image_descriptor_layout,
-        }
     }
 
     pub fn cleanup(&self, logical_device: &Device) {

@@ -3,12 +3,14 @@ mod descriptors;
 mod device;
 pub mod images;
 mod instance;
+mod pipelines;
 mod surface;
 mod swapchain;
 
 use crate::renderer::commands::Commands;
 use crate::renderer::descriptors::Descriptors;
 use crate::renderer::device::Device;
+use crate::renderer::pipelines::Pipelines;
 use crate::renderer::swapchain::*;
 use ash::{Entry, Instance};
 use vk_mem::{Allocator, AllocatorCreateFlags, AllocatorCreateInfo};
@@ -22,6 +24,7 @@ pub struct Renderer {
     pub swapchain: Swapchain,
     pub commands: Commands,
     pub descriptors: Descriptors,
+    pub pipelines: Pipelines,
 }
 
 impl Renderer {
@@ -33,7 +36,8 @@ impl Renderer {
         let allocator = Self::create_allocator(&instance.handle, &device);
         let swapchain = Swapchain::new(&instance.handle, &device, &surface, &allocator);
         let commands = Commands::new(&device.logical, device.queues.graphics.0);
-        let descriptors = Descriptors::new(&device.logical, swapchain.draw_image.image_view);
+        let descriptors = Descriptors::new(&device.logical, &swapchain);
+        let pipelines = Pipelines::new(&device.logical, &descriptors);
         Renderer {
             instance,
             surface,
@@ -42,6 +46,7 @@ impl Renderer {
             swapchain,
             commands,
             descriptors,
+            pipelines,
         }
     }
 
@@ -76,6 +81,7 @@ impl Renderer {
                 .device_wait_idle()
                 .expect("Could not wait device idle");
         }
+        self.pipelines.cleanup(&self.device.logical);
         self.swapchain
             .cleanup(&self.device.logical, self.allocator.as_ref().unwrap());
         self.commands.cleanup(&self.device.logical);

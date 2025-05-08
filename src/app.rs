@@ -2,8 +2,8 @@ use crate::renderer::Renderer;
 use crate::renderer::images::{copy_image_to_image, transition_image_layout};
 use ash::vk::{
     ClearColorValue, CommandBufferResetFlags, CommandBufferSubmitInfo, Fence, ImageAspectFlags,
-    ImageLayout, ImageSubresourceRange, PipelineStageFlags2, PresentInfoKHR, SemaphoreSubmitInfo,
-    SubmitInfo2,
+    ImageLayout, ImageSubresourceRange, PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR,
+    SemaphoreSubmitInfo, SubmitInfo2,
 };
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -23,7 +23,7 @@ impl ApplicationHandler for App {
             .create_window(
                 WindowAttributes::default()
                     .with_title("vxl")
-                    .with_inner_size(winit::dpi::LogicalSize::new(800.0, 800.0)),
+                    .with_inner_size(winit::dpi::LogicalSize::new(400.0, 400.0)),
             )
             .unwrap();
         self.renderer = Some(Renderer::new(&window));
@@ -148,6 +148,30 @@ impl App {
                 &clear_ranges,
             );
         }
+        //temp
+        unsafe {
+            self.renderer().device.logical.cmd_bind_pipeline(
+                command_buffer,
+                PipelineBindPoint::COMPUTE,
+                self.renderer().pipelines.gradient_pipeline,
+            );
+            let descriptor_sets = [self.renderer().descriptors.draw_image_descriptor_set];
+            self.renderer().device.logical.cmd_bind_descriptor_sets(
+                command_buffer,
+                PipelineBindPoint::COMPUTE,
+                self.renderer().pipelines.gradient_pipeline_layout,
+                0,
+                &descriptor_sets,
+                &[],
+            );
+            let extent = self.renderer().swapchain.extent;
+            self.renderer().device.logical.cmd_dispatch(
+                command_buffer,
+                extent.width / 16,
+                extent.height / 16,
+                1,
+            );
+        }
         //
         transition_image_layout(
             &self.renderer().device,
@@ -241,6 +265,10 @@ impl App {
             return false;
         }
         self.renderer_mut().recreate_swap_chain();
+        self.renderer().descriptors.update(
+            &self.renderer().device.logical,
+            self.renderer().swapchain.draw_image.image_view,
+        );
         true
     }
 }
