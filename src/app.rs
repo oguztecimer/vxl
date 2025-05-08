@@ -124,7 +124,7 @@ impl App {
             .begin_command_buffer(&self.renderer().device.logical);
 
         transition_image_layout(
-            &self.renderer().device.logical,
+            &self.renderer().device,
             command_buffer,
             self.renderer().swapchain.draw_image.image,
             ImageLayout::UNDEFINED,
@@ -150,21 +150,21 @@ impl App {
         }
         //
         transition_image_layout(
-            &self.renderer().device.logical,
+            &self.renderer().device,
             command_buffer,
             self.renderer().swapchain.draw_image.image,
             ImageLayout::GENERAL,
             ImageLayout::TRANSFER_SRC_OPTIMAL,
         );
         transition_image_layout(
-            &self.renderer().device.logical,
+            &self.renderer().device,
             command_buffer,
             self.renderer().swapchain.images[image_index],
             ImageLayout::UNDEFINED,
             ImageLayout::TRANSFER_DST_OPTIMAL,
         );
         copy_image_to_image(
-            &self.renderer().device.logical,
+            &self.renderer().device,
             command_buffer,
             self.renderer().swapchain.draw_image.image,
             self.renderer().swapchain.images[image_index],
@@ -172,7 +172,7 @@ impl App {
             self.renderer().swapchain.extent,
         );
         transition_image_layout(
-            &self.renderer().device.logical,
+            &self.renderer().device,
             command_buffer,
             self.renderer().swapchain.images[image_index],
             ImageLayout::TRANSFER_DST_OPTIMAL,
@@ -206,7 +206,7 @@ impl App {
             .signal_semaphore_infos(&signal_semaphore_infos)];
 
         unsafe {
-            self.renderer().device.logical.queue_submit2(
+            self.renderer().device.logical_sync2.queue_submit2(
                 self.renderer().device.queues.graphics.1,
                 &submit_infos,
                 self.renderer().commands.get_current_frame().render_fence,

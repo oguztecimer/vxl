@@ -1,4 +1,4 @@
-use ash::Device;
+use crate::renderer::device::Device;
 use ash::vk::{
     AccessFlags2, BlitImageInfo2, CommandBuffer, DependencyInfo, Extent2D, Extent3D, Filter,
     Format, Image, ImageAspectFlags, ImageBlit2, ImageCreateInfo, ImageLayout, ImageMemoryBarrier2,
@@ -18,7 +18,7 @@ pub struct AllocatedImage {
 
 impl AllocatedImage {
     pub fn new(
-        logical_device: &Device,
+        device: &Device,
         allocator: &Allocator,
         format: Format,
         extent3d: Extent3D,
@@ -26,7 +26,7 @@ impl AllocatedImage {
         aspect_flags: ImageAspectFlags,
     ) -> Self {
         let (image, allocation) = create_image(allocator, format, extent3d, usage_flags);
-        let image_view = create_image_view(logical_device, image, format, aspect_flags);
+        let image_view = create_image_view(&device.logical, image, format, aspect_flags);
 
         Self {
             image,
@@ -36,7 +36,7 @@ impl AllocatedImage {
             allocation,
         }
     }
-    pub fn cleanup(&mut self, logical_device: &Device, allocator: &Allocator) {
+    pub fn cleanup(&mut self, logical_device: &ash::Device, allocator: &Allocator) {
         unsafe {
             logical_device.destroy_image_view(self.image_view, None);
             allocator.destroy_image(self.image, &mut self.allocation);
@@ -69,7 +69,7 @@ pub fn create_image(
 }
 
 pub fn create_image_view(
-    logical_device: &Device,
+    logical_device: &ash::Device,
     image: Image,
     format: Format,
     aspect_flags: ImageAspectFlags,
@@ -88,7 +88,7 @@ pub fn create_image_view(
 }
 
 pub fn transition_image_layout(
-    logical_device: &Device,
+    device: &Device,
     command_buffer: CommandBuffer,
     image: Image,
     current_layout: ImageLayout,
@@ -115,11 +115,15 @@ pub fn transition_image_layout(
         .image(image);
     let image_barriers = [image_barrier];
     let dependency_info = DependencyInfo::default().image_memory_barriers(&image_barriers);
-    unsafe { logical_device.cmd_pipeline_barrier2(command_buffer, &dependency_info) }
+    unsafe {
+        device
+            .logical_sync2
+            .cmd_pipeline_barrier2(command_buffer, &dependency_info)
+    }
 }
 
 pub fn copy_image_to_image(
-    logical_device: &Device,
+    device: &Device,
     command_buffer: CommandBuffer,
     src_image: Image,
     dst_image: Image,
@@ -148,5 +152,9 @@ pub fn copy_image_to_image(
         .dst_image(dst_image)
         .dst_image_layout(ImageLayout::TRANSFER_DST_OPTIMAL);
 
-    unsafe { logical_device.cmd_blit_image2(command_buffer, &blit_info) }
+    unsafe {
+        device
+            .logical_copy_commands2
+            .cmd_blit_image2(command_buffer, &blit_info)
+    }
 }

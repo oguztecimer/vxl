@@ -94,7 +94,7 @@ impl Swapchain {
             depth: 1,
         };
         let draw_image = AllocatedImage::new(
-            &device.logical,
+            device,
             allocator,
             Format::R16G16B16A16_SFLOAT,
             extent3d,

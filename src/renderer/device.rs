@@ -1,5 +1,7 @@
 use crate::renderer::surface::Surface;
 use ash::Instance;
+use ash::khr::copy_commands2::Device as CopyCommands2Device;
+use ash::khr::synchronization2::Device as Sync2Device;
 use ash::vk::{
     DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceVulkan12Features,
     PhysicalDeviceVulkan13Features, Queue, QueueFlags,
@@ -8,6 +10,8 @@ use ash::vk::{
 pub struct Device {
     pub physical: PhysicalDevice,
     pub logical: ash::Device,
+    pub logical_sync2: Sync2Device,
+    pub logical_copy_commands2: CopyCommands2Device,
     pub queues: Queues,
 }
 
@@ -84,6 +88,8 @@ impl Device {
             physical,
         );
 
+        let logical_sync2 = Sync2Device::new(instance, &logical);
+        let logical_copy_commands2 = CopyCommands2Device::new(instance, &logical);
         let graphics_queue = unsafe { logical.get_device_queue(selected_graphic_index, 0) };
         let queues = Queues {
             graphics: (selected_graphic_index, graphics_queue),
@@ -92,6 +98,8 @@ impl Device {
         Self {
             physical,
             logical,
+            logical_sync2,
+            logical_copy_commands2,
             queues,
         }
     }
@@ -109,7 +117,8 @@ impl Device {
         let device_extension_names_raw = [
             ash::khr::swapchain::NAME.as_ptr(),
             ash::khr::synchronization2::NAME.as_ptr(),
-        #[cfg(any(target_os = "macos", target_os = "ios"))]
+            ash::khr::copy_commands2::NAME.as_ptr(),
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
             ash::khr::portability_subset::NAME.as_ptr(),
         ];
         let mut device_queue_create_info_vec = vec![device_queue_create_info_graphic];
