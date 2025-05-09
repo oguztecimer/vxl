@@ -5,7 +5,6 @@ use ash::vk::{
     FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCreateInfo,
 };
 
-pub const FRAME_OVERLAP: usize = 2;
 pub struct FrameData {
     pub command_pool: CommandPool,
     pub command_buffer: CommandBuffer,
@@ -15,14 +14,19 @@ pub struct FrameData {
 }
 
 pub struct Commands {
-    frames: Vec<FrameData>,
-    frame_number: usize,
+    pub frames: Vec<FrameData>,
+    pub frame_number: usize,
+    pub max_frames: usize,
 }
 
 impl Commands {
-    pub fn new(logical_device: &Device, graphics_queue_family_index: u32) -> Self {
-        let mut frames = Vec::with_capacity(FRAME_OVERLAP);
-        for _ in 0..FRAME_OVERLAP {
+    pub fn new(
+        logical_device: &Device,
+        graphics_queue_family_index: u32,
+        max_frames: usize,
+    ) -> Self {
+        let mut frames = Vec::with_capacity(max_frames);
+        for _ in 0..max_frames {
             let command_pool =
                 Self::create_command_pool(logical_device, graphics_queue_family_index);
             let command_buffer = Self::create_command_buffer(&command_pool, logical_device);
@@ -49,6 +53,7 @@ impl Commands {
         Self {
             frames,
             frame_number: 0,
+            max_frames,
         }
     }
 
@@ -56,7 +61,7 @@ impl Commands {
         self.frame_number += 1;
     }
     pub fn get_current_frame(&self) -> &FrameData {
-        &self.frames[self.frame_number % FRAME_OVERLAP]
+        &self.frames[self.frame_number % self.max_frames]
     }
     pub fn create_command_pool(logical_device: &Device, queue_family_index: u32) -> CommandPool {
         let command_pool_create_info = CommandPoolCreateInfo::default()

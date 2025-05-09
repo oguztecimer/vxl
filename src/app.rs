@@ -1,12 +1,16 @@
+use crate::imgui::{create_imgui_renderer, setup_imgui};
 use crate::renderer::Renderer;
 use crate::renderer::images::{copy_image_to_image, transition_image_layout};
 use ash::vk::{
-    ClearColorValue, CommandBufferResetFlags, CommandBufferSubmitInfo, Fence, ImageAspectFlags,
-    ImageLayout, ImageSubresourceRange, PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR,
-    SemaphoreSubmitInfo, SubmitInfo2,
+    AttachmentLoadOp, AttachmentStoreOp, ClearValue, CommandBuffer, CommandBufferResetFlags,
+    CommandBufferSubmitInfo, CommandPool, Fence, ImageLayout, ImageView, Offset2D,
+    PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo,
+    RenderingInfo, SemaphoreSubmitInfo, SubmitInfo2,
 };
+use imgui::Context;
+use imgui_winit_support::WinitPlatform;
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{Event, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -14,6 +18,10 @@ use winit::window::{Window, WindowAttributes, WindowId};
 pub struct App {
     pub window: Option<Window>,
     pub renderer: Option<Renderer>,
+    pub imgui_context: Option<Context>,
+    pub imgui_renderer: Option<imgui_rs_vulkan_renderer::Renderer>,
+    pub imgui_platform: Option<WinitPlatform>,
+    pub imgui_command_pool: Option<CommandPool>,
     pub close_requested: bool,
 }
 
@@ -26,8 +34,22 @@ impl ApplicationHandler for App {
                     .with_inner_size(winit::dpi::LogicalSize::new(400.0, 400.0)),
             )
             .unwrap();
-        self.renderer = Some(Renderer::new(&window));
+
+        let renderer = Renderer::new(&window);
+        let (mut imgui_context, imgui_platform) = setup_imgui(&window);
+        let (imgui_renderer, imgui_command_pool) = create_imgui_renderer(
+            &renderer.instance.handle,
+            &renderer.device,
+            &mut imgui_context,
+            None,
+        );
+
+        self.renderer = Some(renderer);
         self.window = Some(window);
+        self.imgui_context = Some(imgui_context);
+        self.imgui_platform = Some(imgui_platform);
+        self.imgui_renderer = Some(imgui_renderer);
+        self.imgui_command_pool = Some(imgui_command_pool);
         self.window().request_redraw();
     }
 
@@ -37,6 +59,21 @@ impl ApplicationHandler for App {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        let id = self.window().id();
+        if let Some(imgui_platform) = self.imgui_platform.as_mut() {
+            if let Some(imgui_context) = self.imgui_context.as_mut() {
+                let generic_event: Event<WindowEvent> = Event::WindowEvent {
+                    event: event.clone(),
+                    window_id: id,
+                };
+                imgui_platform.handle_event(
+                    imgui_context.io_mut(),
+                    self.window.as_mut().unwrap(),
+                    &generic_event,
+                );
+            }
+        }
+
         match event {
             WindowEvent::CloseRequested => {
                 self.close_requested = true;
@@ -53,14 +90,29 @@ impl ApplicationHandler for App {
                     )
                 }
                 .expect("Could not reset command buffer");
+                unsafe {
+                    self.renderer()
+                        .device
+                        .logical
+                        .destroy_command_pool(self.imgui_command_pool.unwrap(), None)
+                };
+                self.imgui_platform = None;
+                self.imgui_context = None;
+                self.imgui_renderer = None;
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                self.draw_frame();
+                let window_size = self.window.as_ref().unwrap().inner_size();
+                if let Some(imgui_context) = self.imgui_context.as_mut() {
+                    imgui_context.io_mut().display_size =
+                        [window_size.width as f32, window_size.height as f32];
+                    self.draw_frame();
+                }
             }
             WindowEvent::Resized(_) => {
                 self.recreate_swap_chain();
             }
+
             _ => (),
         }
     }
@@ -88,6 +140,9 @@ impl App {
                 .logical
                 .wait_for_fences(&fences, true, 1000000000)
                 .expect("Could not wait for fences");
+            self.renderer_mut().commands.increment_frame();
+            let fences = [self.renderer().commands.get_current_frame().render_fence];
+
             self.renderer()
                 .device
                 .logical
@@ -131,23 +186,23 @@ impl App {
             ImageLayout::GENERAL,
         );
         //DRAW BACKGROUND
-        let clear_color = ClearColorValue {
-            float32: [1.0, 0.0, 0.0, 1.0],
-        };
-        let clear_range = ImageSubresourceRange::default()
-            .aspect_mask(ImageAspectFlags::COLOR)
-            .level_count(1)
-            .layer_count(1);
-        let clear_ranges = [clear_range];
-        unsafe {
-            self.renderer().device.logical.cmd_clear_color_image(
-                command_buffer,
-                self.renderer().swapchain.draw_image.image,
-                ImageLayout::GENERAL,
-                &clear_color,
-                &clear_ranges,
-            );
-        }
+        // let clear_color = ClearColorValue {
+        //     float32: [1.0, 0.0, 0.0, 1.0],
+        // };
+        // let clear_range = ImageSubresourceRange::default()
+        //     .aspect_mask(ImageAspectFlags::COLOR)
+        //     .level_count(1)
+        //     .layer_count(1);
+        // let clear_ranges = [clear_range];
+        // unsafe {
+        //     self.renderer().device.logical.cmd_clear_color_image(
+        //         command_buffer,
+        //         self.renderer().swapchain.draw_image.image,
+        //         ImageLayout::GENERAL,
+        //         &clear_color,
+        //         &clear_ranges,
+        //     );
+        // }
         //temp
         unsafe {
             self.renderer().device.logical.cmd_bind_pipeline(
@@ -200,6 +255,17 @@ impl App {
             command_buffer,
             self.renderer().swapchain.images[image_index],
             ImageLayout::TRANSFER_DST_OPTIMAL,
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+        );
+        self.draw_imgui(
+            command_buffer,
+            self.renderer().swapchain.image_views[image_index],
+        );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.images[image_index],
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             ImageLayout::PRESENT_SRC_KHR,
         );
         self.renderer()
@@ -256,7 +322,9 @@ impl App {
                 .queue_present(self.renderer().device.queues.graphics.1, &present_info)
         }
         .expect("Could not present queue");
-        self.renderer_mut().commands.increment_frame();
+        if !self.close_requested {
+            self.window().request_redraw();
+        }
     }
 
     fn recreate_swap_chain(&mut self) -> bool {
@@ -270,5 +338,76 @@ impl App {
             self.renderer().swapchain.draw_image.image_view,
         );
         true
+    }
+
+    fn create_rendering_attachment_info(
+        &self,
+        view: ImageView,
+        layout: ImageLayout,
+        clear: Option<ClearValue>,
+    ) -> RenderingAttachmentInfo {
+        let mut info = RenderingAttachmentInfo::default()
+            .image_view(view)
+            .image_layout(layout)
+            .load_op(if clear.is_some() {
+                AttachmentLoadOp::CLEAR
+            } else {
+                AttachmentLoadOp::LOAD
+            })
+            .store_op(AttachmentStoreOp::STORE);
+        if let Some(clear) = clear {
+            info.clear_value = clear;
+        }
+        info
+    }
+
+    fn draw_imgui(&mut self, command_buffer: CommandBuffer, target_image_view: ImageView) {
+        let color_attachment = self.create_rendering_attachment_info(
+            target_image_view,
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            None,
+        );
+        let color_attachments = [color_attachment];
+        let rendering_info = RenderingInfo::default()
+            .color_attachments(&color_attachments)
+            .layer_count(1)
+            .render_area(Rect2D {
+                offset: Offset2D::default(),
+                extent: self.renderer().swapchain.extent,
+            });
+
+        unsafe {
+            self.renderer()
+                .device
+                .logical_dynamic_rendering
+                .cmd_begin_rendering(command_buffer, &rendering_info);
+            let frame_number = self.renderer().commands.frame_number;
+            let imgui_context_mut = self.imgui_context.as_mut().unwrap();
+            let imgui_renderer_mut = self.imgui_renderer.as_mut().unwrap();
+            let imgui_platform_mut = self.imgui_platform.as_mut().unwrap();
+            let window = self.window.as_ref().unwrap();
+            imgui_platform_mut
+                .prepare_frame(imgui_context_mut.io_mut(), window)
+                .expect("Failed to prepare frame");
+            let ui = imgui_context_mut.frame();
+            //ui.show_demo_window(&mut true);
+            ui.window("Debug")
+                .size([400.0, 200.0], imgui::Condition::FirstUseEver)
+                .build(|| {
+                    ui.text(format!("Frame: {}", frame_number));
+                    if ui.button("Click me") {
+                        println!("Button clicked!");
+                    }
+                });
+            imgui_platform_mut.prepare_render(ui, window);
+            let draw_data = imgui_context_mut.render();
+            imgui_renderer_mut
+                .cmd_draw(command_buffer, draw_data)
+                .expect("Could not draw imgui");
+            self.renderer()
+                .device
+                .logical_dynamic_rendering
+                .cmd_end_rendering(command_buffer);
+        }
     }
 }

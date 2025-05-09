@@ -1,7 +1,8 @@
-mod commands;
+pub mod commands;
 mod descriptors;
-mod device;
+pub mod device;
 pub mod images;
+mod immediate_commands;
 mod instance;
 mod pipelines;
 mod surface;
@@ -35,7 +36,11 @@ impl Renderer {
         let device = device::Device::new(&instance.handle, &surface);
         let allocator = Self::create_allocator(&instance.handle, &device);
         let swapchain = Swapchain::new(&instance.handle, &device, &surface, &allocator);
-        let commands = Commands::new(&device.logical, device.queues.graphics.0);
+        let commands = Commands::new(
+            &device.logical,
+            device.queues.graphics.0,
+            swapchain.images.len(),
+        );
         let descriptors = Descriptors::new(&device.logical, &swapchain);
         let pipelines = Pipelines::new(&device.logical, &descriptors);
         Renderer {

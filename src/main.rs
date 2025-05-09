@@ -1,4 +1,5 @@
 mod app;
+mod imgui;
 mod renderer;
 
 use app::App;

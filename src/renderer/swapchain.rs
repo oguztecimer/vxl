@@ -120,7 +120,7 @@ impl Swapchain {
             for view in &self.image_views {
                 logical_device.destroy_image_view(*view, None)
             }
-            self.loader.destroy_swapchain(self.handle, None)
+            self.loader.destroy_swapchain(self.handle, None);
         }
     }
 }
