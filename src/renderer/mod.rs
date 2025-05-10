@@ -4,7 +4,7 @@ pub mod device;
 pub mod images;
 mod immediate_commands;
 mod instance;
-mod pipelines;
+pub mod pipelines;
 mod surface;
 mod swapchain;
 

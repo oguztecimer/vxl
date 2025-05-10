@@ -1,11 +1,12 @@
 use crate::imgui::{create_imgui_renderer, setup_imgui};
 use crate::renderer::Renderer;
 use crate::renderer::images::{copy_image_to_image, transition_image_layout};
+use crate::renderer::pipelines::ComputePushConstants;
 use ash::vk::{
     AttachmentLoadOp, AttachmentStoreOp, ClearValue, CommandBuffer, CommandBufferResetFlags,
     CommandBufferSubmitInfo, CommandPool, Fence, ImageLayout, ImageView, Offset2D,
     PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo,
-    RenderingInfo, SemaphoreSubmitInfo, SubmitInfo2,
+    RenderingInfo, SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2,
 };
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
@@ -31,7 +32,7 @@ impl ApplicationHandler for App {
             .create_window(
                 WindowAttributes::default()
                     .with_title("vxl")
-                    .with_inner_size(winit::dpi::LogicalSize::new(400.0, 400.0)),
+                    .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0)),
             )
             .unwrap();
 
@@ -208,16 +209,35 @@ impl App {
             self.renderer().device.logical.cmd_bind_pipeline(
                 command_buffer,
                 PipelineBindPoint::COMPUTE,
-                self.renderer().pipelines.gradient_pipeline,
+                self.renderer().pipelines.get_current_effect().pipeline,
             );
             let descriptor_sets = [self.renderer().descriptors.draw_image_descriptor_set];
             self.renderer().device.logical.cmd_bind_descriptor_sets(
                 command_buffer,
                 PipelineBindPoint::COMPUTE,
-                self.renderer().pipelines.gradient_pipeline_layout,
+                self.renderer()
+                    .pipelines
+                    .get_current_effect()
+                    .pipeline_layout,
                 0,
                 &descriptor_sets,
                 &[],
+            );
+            let push_constants = &self.renderer().pipelines.get_current_effect().data;
+            let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
+                push_constants as *const ComputePushConstants as *const u8,
+                size_of::<ComputePushConstants>(),
+            );
+
+            self.renderer().device.logical.cmd_push_constants(
+                command_buffer,
+                self.renderer()
+                    .pipelines
+                    .get_current_effect()
+                    .pipeline_layout,
+                ShaderStageFlags::COMPUTE,
+                0,
+                push_constants_bytes,
             );
             let extent = self.renderer().swapchain.extent;
             self.renderer().device.logical.cmd_dispatch(
