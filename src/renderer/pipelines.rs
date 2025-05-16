@@ -132,6 +132,15 @@ impl Pipelines {
         &self.compute_effects[self.active_compute_effect_index]
     }
 
+    pub fn get_current_effect_mut(&mut self) -> &mut ComputeEffect {
+        &mut self.compute_effects[self.active_compute_effect_index]
+    }
+
+    pub fn toggle_current_effect(&mut self) {
+        self.active_compute_effect_index =
+            (self.active_compute_effect_index + 1) % self.compute_effects.len();
+    }
+
     pub fn cleanup(&self, logical_device: &Device) {
         for effect in self.compute_effects.iter() {
             effect.cleanup(logical_device);

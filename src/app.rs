@@ -395,30 +395,54 @@ impl App {
                 offset: Offset2D::default(),
                 extent: self.renderer().swapchain.extent,
             });
-
+        let active_effect_name = self.renderer().pipelines.get_current_effect().name.clone();
         unsafe {
             self.renderer()
                 .device
                 .logical_dynamic_rendering
                 .cmd_begin_rendering(command_buffer, &rendering_info);
             let frame_number = self.renderer().commands.frame_number;
+            let pipelines = &mut self.renderer.as_mut().unwrap().pipelines;
             let imgui_context_mut = self.imgui_context.as_mut().unwrap();
             let imgui_renderer_mut = self.imgui_renderer.as_mut().unwrap();
             let imgui_platform_mut = self.imgui_platform.as_mut().unwrap();
+
             let window = self.window.as_ref().unwrap();
             imgui_platform_mut
                 .prepare_frame(imgui_context_mut.io_mut(), window)
                 .expect("Failed to prepare frame");
             let ui = imgui_context_mut.frame();
-            //ui.show_demo_window(&mut true);
+
+            // Get a single mutable reference to the current effect's data
+            let effect_data = &mut pipelines.get_current_effect_mut().data;
+
+            // Mutable references to data1 and data2 fields
+            let data1 = &mut effect_data.data1;
+            let data2 = &mut effect_data.data2;
+            let mut toggle_shader = false;
+
             ui.window("Debug")
                 .size([400.0, 200.0], imgui::Condition::FirstUseEver)
                 .build(|| {
-                    ui.text(format!("Frame: {}", frame_number));
-                    if ui.button("Click me") {
-                        println!("Button clicked!");
+                    {
+                        ui.text(format!("Frame: {}", frame_number));
+                    }
+
+                    ui.slider("x", 0f32, 1f32, &mut data1.x);
+                    ui.slider("y", 0f32, 1f32, &mut data1.y);
+                    ui.slider("z", 0f32, 1f32, &mut data1.z);
+
+                    ui.slider("x2", 0f32, 1f32, &mut data2.x);
+                    ui.slider("y2", 0f32, 1f32, &mut data2.y);
+                    ui.slider("z2", 0f32, 1f32, &mut data2.z);
+
+                    if ui.button(format!("Toggle Shader - {}", active_effect_name)) {
+                        toggle_shader = true;
                     }
                 });
+            if toggle_shader {
+                pipelines.toggle_current_effect();
+            }
             imgui_platform_mut.prepare_render(ui, window);
             let draw_data = imgui_context_mut.render();
             imgui_renderer_mut
