@@ -2,7 +2,13 @@ use crate::imgui::{create_imgui_renderer, setup_imgui};
 use crate::renderer::Renderer;
 use crate::renderer::images::{copy_image_to_image, transition_image_layout};
 use crate::renderer::pipelines::ComputePushConstants;
-use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearValue, CommandBuffer, CommandBufferResetFlags, CommandBufferSubmitInfo, CommandPool, Fence, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, Offset2D, PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo, SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2};
+use ash::vk::{
+    AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearValue, CommandBuffer,
+    CommandBufferResetFlags, CommandBufferSubmitInfo, CommandPool, Fence, ImageAspectFlags,
+    ImageLayout, ImageSubresourceRange, ImageView, Offset2D, PipelineBindPoint,
+    PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo,
+    SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
+};
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
 use winit::application::ApplicationHandler;
@@ -181,73 +187,24 @@ impl App {
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
         );
-        //DRAW BACKGROUND START
-        let clear_color = ClearColorValue {
-            float32: [0.0, 0.0, 0.0, 1.0],
-        };
-        let clear_range = ImageSubresourceRange::default()
-            .aspect_mask(ImageAspectFlags::COLOR)
-            .level_count(1)
-            .layer_count(1);
-        let clear_ranges = [clear_range];
-        unsafe {
-            self.renderer().device.logical.cmd_clear_color_image(
-                command_buffer,
-                self.renderer().swapchain.draw_image.image,
-                ImageLayout::GENERAL,
-                &clear_color,
-                &clear_ranges,
-            );
-        }
-        //DRAW BACKGROUND END
-        unsafe {
-            self.renderer().device.logical.cmd_bind_pipeline(
-                command_buffer,
-                PipelineBindPoint::COMPUTE,
-                self.renderer().pipelines.get_current_compute_pipeline().pipeline,
-            );
-            let descriptor_sets = [self.renderer().descriptors.draw_image_descriptor_set];
-            self.renderer().device.logical.cmd_bind_descriptor_sets(
-                command_buffer,
-                PipelineBindPoint::COMPUTE,
-                self.renderer()
-                    .pipelines
-                    .get_current_compute_pipeline()
-                    .pipeline_layout,
-                0,
-                &descriptor_sets,
-                &[],
-            );
-            let push_constants = &self.renderer().pipelines.get_current_compute_pipeline().data;
-            let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
-                push_constants as *const ComputePushConstants as *const u8,
-                size_of::<ComputePushConstants>(),
-            );
 
-            self.renderer().device.logical.cmd_push_constants(
-                command_buffer,
-                self.renderer()
-                    .pipelines
-                    .get_current_compute_pipeline()
-                    .pipeline_layout,
-                ShaderStageFlags::COMPUTE,
-                0,
-                push_constants_bytes,
-            );
-            let extent = self.renderer().swapchain.extent;
-            self.renderer().device.logical.cmd_dispatch(
-                command_buffer,
-                extent.width / 16,
-                extent.height / 16,
-                1,
-            );
-        }
-        //
+        self.draw_background(command_buffer);
+        self.draw_compute(command_buffer);
+
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
             self.renderer().swapchain.draw_image.image,
             ImageLayout::GENERAL,
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+        );
+        self.draw_geometry(command_buffer);
+
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.draw_image.image,
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             ImageLayout::TRANSFER_SRC_OPTIMAL,
         );
         transition_image_layout(
@@ -342,38 +299,127 @@ impl App {
         }
     }
 
-    fn recreate_swap_chain(&mut self) -> bool {
-        let size = self.window().inner_size();
-        if size.width == 0 || size.height == 0 {
-            return false;
+    fn draw_background(&mut self, command_buffer: CommandBuffer) {
+        let clear_color = ClearColorValue {
+            float32: [0.0, 0.0, 0.0, 1.0],
+        };
+        let clear_range = ImageSubresourceRange::default()
+            .aspect_mask(ImageAspectFlags::COLOR)
+            .level_count(1)
+            .layer_count(1);
+        let clear_ranges = [clear_range];
+        unsafe {
+            self.renderer().device.logical.cmd_clear_color_image(
+                command_buffer,
+                self.renderer().swapchain.draw_image.image,
+                ImageLayout::GENERAL,
+                &clear_color,
+                &clear_ranges,
+            );
         }
-        self.renderer_mut().recreate_swap_chain();
-        self.renderer().descriptors.update(
-            &self.renderer().device.logical,
-            self.renderer().swapchain.draw_image.image_view,
-        );
-        true
+    }
+    fn draw_compute(&mut self, command_buffer: CommandBuffer) {
+        unsafe {
+            self.renderer().device.logical.cmd_bind_pipeline(
+                command_buffer,
+                PipelineBindPoint::COMPUTE,
+                self.renderer()
+                    .pipelines
+                    .get_current_compute_pipeline()
+                    .pipeline,
+            );
+            let descriptor_sets = [self.renderer().descriptors.draw_image_descriptor_set];
+            self.renderer().device.logical.cmd_bind_descriptor_sets(
+                command_buffer,
+                PipelineBindPoint::COMPUTE,
+                self.renderer()
+                    .pipelines
+                    .get_current_compute_pipeline()
+                    .pipeline_layout,
+                0,
+                &descriptor_sets,
+                &[],
+            );
+            let push_constants = &self
+                .renderer()
+                .pipelines
+                .get_current_compute_pipeline()
+                .data;
+            let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
+                push_constants as *const ComputePushConstants as *const u8,
+                size_of::<ComputePushConstants>(),
+            );
+
+            self.renderer().device.logical.cmd_push_constants(
+                command_buffer,
+                self.renderer()
+                    .pipelines
+                    .get_current_compute_pipeline()
+                    .pipeline_layout,
+                ShaderStageFlags::COMPUTE,
+                0,
+                push_constants_bytes,
+            );
+            let extent = self.renderer().swapchain.extent;
+            self.renderer().device.logical.cmd_dispatch(
+                command_buffer,
+                extent.width / 16,
+                extent.height / 16,
+                1,
+            );
+        }
     }
 
-    fn create_rendering_attachment_info(
-        &self,
-        view: ImageView,
-        layout: ImageLayout,
-        clear: Option<ClearValue>,
-    ) -> RenderingAttachmentInfo {
-        let mut info = RenderingAttachmentInfo::default()
-            .image_view(view)
-            .image_layout(layout)
-            .load_op(if clear.is_some() {
-                AttachmentLoadOp::CLEAR
-            } else {
-                AttachmentLoadOp::LOAD
-            })
-            .store_op(AttachmentStoreOp::STORE);
-        if let Some(clear) = clear {
-            info.clear_value = clear;
+    fn draw_geometry(&mut self, command_buffer: CommandBuffer) {
+        let attachment_info = self.create_rendering_attachment_info(
+            self.renderer().swapchain.draw_image.image_view,
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            None,
+        );
+        let color_attachments = [attachment_info];
+        let rendering_info = RenderingInfo::default()
+            .color_attachments(&color_attachments)
+            .layer_count(1)
+            .render_area(Rect2D {
+                offset: Offset2D::default(),
+                extent: self.renderer().swapchain.extent,
+            });
+        let viewport = Viewport::default()
+            .width(self.renderer().swapchain.extent.width as f32)
+            .height(self.renderer().swapchain.extent.height as f32)
+            .min_depth(0.0)
+            .max_depth(1.0);
+        let scissor = Rect2D {
+            offset: Offset2D::default(),
+            extent: self.renderer().swapchain.extent,
+        };
+        unsafe {
+            self.renderer()
+                .device
+                .logical_dynamic_rendering
+                .cmd_begin_rendering(command_buffer, &rendering_info);
+            self.renderer().device.logical.cmd_bind_pipeline(
+                command_buffer,
+                PipelineBindPoint::GRAPHICS,
+                self.renderer().pipelines.main_graphics_pipeline.pipeline,
+            );
+            self.renderer()
+                .device
+                .logical
+                .cmd_set_viewport(command_buffer, 0, &[viewport]);
+            self.renderer()
+                .device
+                .logical
+                .cmd_set_scissor(command_buffer, 0, &[scissor]);
+            self.renderer()
+                .device
+                .logical
+                .cmd_draw(command_buffer, 3, 1, 0, 0);
+            self.renderer()
+                .device
+                .logical_dynamic_rendering
+                .cmd_end_rendering(command_buffer);
         }
-        info
     }
 
     fn draw_imgui(&mut self, command_buffer: CommandBuffer, target_image_view: ImageView) {
@@ -390,7 +436,12 @@ impl App {
                 offset: Offset2D::default(),
                 extent: self.renderer().swapchain.extent,
             });
-        let active_effect_name = self.renderer().pipelines.get_current_compute_pipeline().name.clone();
+        let active_effect_name = self
+            .renderer()
+            .pipelines
+            .get_current_compute_pipeline()
+            .name
+            .clone();
         unsafe {
             self.renderer()
                 .device
@@ -448,5 +499,39 @@ impl App {
                 .logical_dynamic_rendering
                 .cmd_end_rendering(command_buffer);
         }
+    }
+
+    fn recreate_swap_chain(&mut self) -> bool {
+        let size = self.window().inner_size();
+        if size.width == 0 || size.height == 0 {
+            return false;
+        }
+        self.renderer_mut().recreate_swap_chain();
+        self.renderer().descriptors.update(
+            &self.renderer().device.logical,
+            self.renderer().swapchain.draw_image.image_view,
+        );
+        true
+    }
+
+    fn create_rendering_attachment_info(
+        &self,
+        view: ImageView,
+        layout: ImageLayout,
+        clear: Option<ClearValue>,
+    ) -> RenderingAttachmentInfo {
+        let mut info = RenderingAttachmentInfo::default()
+            .image_view(view)
+            .image_layout(layout)
+            .load_op(if clear.is_some() {
+                AttachmentLoadOp::CLEAR
+            } else {
+                AttachmentLoadOp::LOAD
+            })
+            .store_op(AttachmentStoreOp::STORE);
+        if let Some(clear) = clear {
+            info.clear_value = clear;
+        }
+        info
     }
 }
