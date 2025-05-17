@@ -4,14 +4,14 @@ pub mod device;
 pub mod images;
 mod immediate_commands;
 mod instance;
-pub mod compute_pipelines;
+pub mod pipelines;
 mod surface;
 mod swapchain;
 
 use crate::renderer::commands::Commands;
 use crate::renderer::descriptors::Descriptors;
 use crate::renderer::device::Device;
-use crate::renderer::compute_pipelines::ComputePipelines;
+use crate::renderer::pipelines::Pipelines;
 use crate::renderer::swapchain::*;
 use ash::{Entry, Instance};
 use vk_mem::{Allocator, AllocatorCreateFlags, AllocatorCreateInfo};
@@ -25,7 +25,7 @@ pub struct Renderer {
     pub swapchain: Swapchain,
     pub commands: Commands,
     pub descriptors: Descriptors,
-    pub pipelines: ComputePipelines,
+    pub pipelines: Pipelines,
 }
 
 impl Renderer {
@@ -42,7 +42,7 @@ impl Renderer {
             swapchain.images.len(),
         );
         let descriptors = Descriptors::new(&device.logical, &swapchain);
-        let pipelines = ComputePipelines::new(&device.logical, &descriptors);
+        let pipelines = Pipelines::new(&device.logical, &descriptors);
         Renderer {
             instance,
             surface,

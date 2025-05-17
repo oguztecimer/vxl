@@ -34,8 +34,8 @@ pub struct ComputeEffect {
 }
 
 pub struct Pipelines {
-    pub compute_effects: Vec<ComputeEffect>,
-    pub active_compute_effect_index: usize,
+    pub compute_pipelines: Vec<ComputeEffect>,
+    pub active_compute_pipeline_index: usize,
 }
 
 impl ComputeEffect {
@@ -96,7 +96,7 @@ impl ComputeEffect {
 
 impl Pipelines {
     pub fn new(logical_device: &Device, descriptors: &Descriptors) -> Self {
-        let compute_effects: Vec<ComputeEffect> = vec![
+        let compute_pipelines: Vec<ComputeEffect> = vec![
             ComputeEffect::new(
                 logical_device,
                 descriptors,
@@ -123,26 +123,26 @@ impl Pipelines {
             ),
         ];
         Self {
-            compute_effects,
-            active_compute_effect_index: 0,
+            compute_pipelines,
+            active_compute_pipeline_index: 0,
         }
     }
 
-    pub fn get_current_effect(&self) -> &ComputeEffect {
-        &self.compute_effects[self.active_compute_effect_index]
+    pub fn get_current_compute_pipeline(&self) -> &ComputeEffect {
+        &self.compute_pipelines[self.active_compute_pipeline_index]
     }
 
-    pub fn get_current_effect_mut(&mut self) -> &mut ComputeEffect {
-        &mut self.compute_effects[self.active_compute_effect_index]
+    pub fn get_current_compute_pipeline_mut(&mut self) -> &mut ComputeEffect {
+        &mut self.compute_pipelines[self.active_compute_pipeline_index]
     }
 
-    pub fn toggle_current_effect(&mut self) {
-        self.active_compute_effect_index =
-            (self.active_compute_effect_index + 1) % self.compute_effects.len();
+    pub fn toggle_current_compute_pipeline(&mut self) {
+        self.active_compute_pipeline_index =
+            (self.active_compute_pipeline_index + 1) % self.compute_pipelines.len();
     }
 
     pub fn cleanup(&self, logical_device: &Device) {
-        for effect in self.compute_effects.iter() {
+        for effect in self.compute_pipelines.iter() {
             effect.cleanup(logical_device);
         }
     }

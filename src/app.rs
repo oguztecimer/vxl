@@ -1,13 +1,8 @@
 use crate::imgui::{create_imgui_renderer, setup_imgui};
 use crate::renderer::Renderer;
 use crate::renderer::images::{copy_image_to_image, transition_image_layout};
-use crate::renderer::compute_pipelines::ComputePushConstants;
-use ash::vk::{
-    AttachmentLoadOp, AttachmentStoreOp, ClearValue, CommandBuffer, CommandBufferResetFlags,
-    CommandBufferSubmitInfo, CommandPool, Fence, ImageLayout, ImageView, Offset2D,
-    PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo,
-    RenderingInfo, SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2,
-};
+use crate::renderer::pipelines::ComputePushConstants;
+use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearValue, CommandBuffer, CommandBufferResetFlags, CommandBufferSubmitInfo, CommandPool, Fence, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, Offset2D, PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo, SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2};
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
 use winit::application::ApplicationHandler;
@@ -186,30 +181,30 @@ impl App {
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
         );
-        //DRAW BACKGROUND
-        // let clear_color = ClearColorValue {
-        //     float32: [1.0, 0.0, 0.0, 1.0],
-        // };
-        // let clear_range = ImageSubresourceRange::default()
-        //     .aspect_mask(ImageAspectFlags::COLOR)
-        //     .level_count(1)
-        //     .layer_count(1);
-        // let clear_ranges = [clear_range];
-        // unsafe {
-        //     self.renderer().device.logical.cmd_clear_color_image(
-        //         command_buffer,
-        //         self.renderer().swapchain.draw_image.image,
-        //         ImageLayout::GENERAL,
-        //         &clear_color,
-        //         &clear_ranges,
-        //     );
-        // }
-        //temp
+        //DRAW BACKGROUND START
+        let clear_color = ClearColorValue {
+            float32: [0.0, 0.0, 0.0, 1.0],
+        };
+        let clear_range = ImageSubresourceRange::default()
+            .aspect_mask(ImageAspectFlags::COLOR)
+            .level_count(1)
+            .layer_count(1);
+        let clear_ranges = [clear_range];
+        unsafe {
+            self.renderer().device.logical.cmd_clear_color_image(
+                command_buffer,
+                self.renderer().swapchain.draw_image.image,
+                ImageLayout::GENERAL,
+                &clear_color,
+                &clear_ranges,
+            );
+        }
+        //DRAW BACKGROUND END
         unsafe {
             self.renderer().device.logical.cmd_bind_pipeline(
                 command_buffer,
                 PipelineBindPoint::COMPUTE,
-                self.renderer().pipelines.get_current_effect().pipeline,
+                self.renderer().pipelines.get_current_compute_pipeline().pipeline,
             );
             let descriptor_sets = [self.renderer().descriptors.draw_image_descriptor_set];
             self.renderer().device.logical.cmd_bind_descriptor_sets(
@@ -217,13 +212,13 @@ impl App {
                 PipelineBindPoint::COMPUTE,
                 self.renderer()
                     .pipelines
-                    .get_current_effect()
+                    .get_current_compute_pipeline()
                     .pipeline_layout,
                 0,
                 &descriptor_sets,
                 &[],
             );
-            let push_constants = &self.renderer().pipelines.get_current_effect().data;
+            let push_constants = &self.renderer().pipelines.get_current_compute_pipeline().data;
             let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
                 push_constants as *const ComputePushConstants as *const u8,
                 size_of::<ComputePushConstants>(),
@@ -233,7 +228,7 @@ impl App {
                 command_buffer,
                 self.renderer()
                     .pipelines
-                    .get_current_effect()
+                    .get_current_compute_pipeline()
                     .pipeline_layout,
                 ShaderStageFlags::COMPUTE,
                 0,
@@ -395,7 +390,7 @@ impl App {
                 offset: Offset2D::default(),
                 extent: self.renderer().swapchain.extent,
             });
-        let active_effect_name = self.renderer().pipelines.get_current_effect().name.clone();
+        let active_effect_name = self.renderer().pipelines.get_current_compute_pipeline().name.clone();
         unsafe {
             self.renderer()
                 .device
@@ -414,7 +409,7 @@ impl App {
             let ui = imgui_context_mut.frame();
 
             // Get a single mutable reference to the current effect's data
-            let effect_data = &mut pipelines.get_current_effect_mut().data;
+            let effect_data = &mut pipelines.get_current_compute_pipeline_mut().data;
 
             // Mutable references to data1 and data2 fields
             let data1 = &mut effect_data.data1;
@@ -441,7 +436,7 @@ impl App {
                     }
                 });
             if toggle_shader {
-                pipelines.toggle_current_effect();
+                pipelines.toggle_current_compute_pipeline();
             }
             imgui_platform_mut.prepare_render(ui, window);
             let draw_data = imgui_context_mut.render();
