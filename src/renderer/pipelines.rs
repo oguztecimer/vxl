@@ -33,7 +33,7 @@ pub struct ComputeEffect {
     pub data: ComputePushConstants,
 }
 
-pub struct ComputePipelines {
+pub struct Pipelines {
     pub compute_effects: Vec<ComputeEffect>,
     pub active_compute_effect_index: usize,
 }
@@ -94,7 +94,7 @@ impl ComputeEffect {
     }
 }
 
-impl ComputePipelines {
+impl Pipelines {
     pub fn new(logical_device: &Device, descriptors: &Descriptors) -> Self {
         let compute_effects: Vec<ComputeEffect> = vec![
             ComputeEffect::new(
