@@ -5,6 +5,7 @@ pub mod device;
 pub mod images;
 mod immediate_commands;
 mod instance;
+mod meshes;
 pub mod pipelines;
 mod surface;
 mod swapchain;
@@ -12,6 +13,8 @@ mod swapchain;
 use crate::renderer::commands::Commands;
 use crate::renderer::descriptors::Descriptors;
 use crate::renderer::device::Device;
+use crate::renderer::immediate_commands::ImmediateCommands;
+use crate::renderer::meshes::GPUMeshBuffers;
 use crate::renderer::pipelines::Pipelines;
 use crate::renderer::swapchain::*;
 use ash::{Entry, Instance};
@@ -27,6 +30,8 @@ pub struct Renderer {
     pub commands: Commands,
     pub descriptors: Descriptors,
     pub pipelines: Pipelines,
+    //pub immediate_commands: ImmediateCommands,
+    pub test_gpu_mesh_buffers: GPUMeshBuffers,
 }
 
 impl Renderer {
@@ -44,6 +49,8 @@ impl Renderer {
         );
         let descriptors = Descriptors::new(&device.logical, &swapchain);
         let pipelines = Pipelines::new(&device.logical, &descriptors);
+        let immediate_commands = ImmediateCommands::new(&device);
+        let test_gpu_mesh_buffers = GPUMeshBuffers::test(&device, &immediate_commands, &allocator);
         Renderer {
             instance,
             surface,
@@ -53,6 +60,8 @@ impl Renderer {
             commands,
             descriptors,
             pipelines,
+            //immediate_commands,
+            test_gpu_mesh_buffers,
         }
     }
 

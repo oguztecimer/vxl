@@ -1,14 +1,15 @@
 use crate::imgui::{create_imgui_renderer, setup_imgui};
 use crate::renderer::Renderer;
 use crate::renderer::images::{copy_image_to_image, transition_image_layout};
-use crate::renderer::pipelines::ComputePushConstants;
+use crate::renderer::pipelines::{ComputePushConstants, GPUDrawPushConstants};
 use ash::vk::{
     AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearValue, CommandBuffer,
     CommandBufferResetFlags, CommandBufferSubmitInfo, CommandPool, Fence, ImageAspectFlags,
-    ImageLayout, ImageSubresourceRange, ImageView, Offset2D, PipelineBindPoint,
+    ImageLayout, ImageSubresourceRange, ImageView, IndexType, Offset2D, PipelineBindPoint,
     PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo,
     SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
 };
+use glam::Mat4;
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
 use winit::application::ApplicationHandler;
@@ -393,32 +394,51 @@ impl App {
             offset: Offset2D::default(),
             extent: self.renderer().swapchain.extent,
         };
+
         unsafe {
-            self.renderer()
-                .device
-                .logical_dynamic_rendering
-                .cmd_begin_rendering(command_buffer, &rendering_info);
-            self.renderer().device.logical.cmd_bind_pipeline(
+            let logical_device = &self.renderer().device.logical;
+            let logical_device_dyn = &self.renderer().device.logical_dynamic_rendering;
+            logical_device_dyn.cmd_begin_rendering(command_buffer, &rendering_info);
+            logical_device.cmd_bind_pipeline(
                 command_buffer,
                 PipelineBindPoint::GRAPHICS,
-                self.renderer().pipelines.main_graphics_pipeline.pipeline,
+                self.renderer().pipelines.triangle_pipeline.pipeline,
             );
-            self.renderer()
-                .device
-                .logical
-                .cmd_set_viewport(command_buffer, 0, &[viewport]);
-            self.renderer()
-                .device
-                .logical
-                .cmd_set_scissor(command_buffer, 0, &[scissor]);
-            self.renderer()
-                .device
-                .logical
-                .cmd_draw(command_buffer, 3, 1, 0, 0);
-            self.renderer()
-                .device
-                .logical_dynamic_rendering
-                .cmd_end_rendering(command_buffer);
+            logical_device.cmd_set_viewport(command_buffer, 0, &[viewport]);
+            logical_device.cmd_set_scissor(command_buffer, 0, &[scissor]);
+            //logical_device.cmd_draw(command_buffer, 3, 1, 0, 0);
+
+            logical_device.cmd_bind_pipeline(
+                command_buffer,
+                PipelineBindPoint::GRAPHICS,
+                self.renderer().pipelines.mesh_pipeline.pipeline,
+            );
+
+            let world_matrix = Mat4::IDENTITY;
+            let push_constants = &GPUDrawPushConstants {
+                world_matrix,
+                vertex_buffer_address: self.renderer().test_gpu_mesh_buffers.vertex_buffer_address,
+            };
+            let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
+                push_constants as *const GPUDrawPushConstants as *const u8,
+                size_of::<GPUDrawPushConstants>(),
+            );
+
+            logical_device.cmd_push_constants(
+                command_buffer,
+                self.renderer().pipelines.mesh_pipeline.pipeline_layout,
+                ShaderStageFlags::VERTEX,
+                0,
+                push_constants_bytes,
+            );
+            logical_device.cmd_bind_index_buffer(
+                command_buffer,
+                self.renderer().test_gpu_mesh_buffers.index_buffer.buffer,
+                0,
+                IndexType::UINT32,
+            );
+            logical_device.cmd_draw_indexed(command_buffer, 6, 1, 0, 0, 0);
+            logical_device_dyn.cmd_end_rendering(command_buffer);
         }
     }
 
