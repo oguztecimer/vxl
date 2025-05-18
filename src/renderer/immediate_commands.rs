@@ -66,4 +66,11 @@ impl ImmediateCommands {
                 .expect("Could not wait for fence");
         }
     }
+
+    pub fn cleanup(&self, logical_device: &ash::Device) {
+        unsafe {
+            logical_device.destroy_command_pool(self.command_pool, None);
+            logical_device.destroy_fence(self.fence, None);
+        }
+    }
 }

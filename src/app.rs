@@ -406,7 +406,7 @@ impl App {
             );
             logical_device.cmd_set_viewport(command_buffer, 0, &[viewport]);
             logical_device.cmd_set_scissor(command_buffer, 0, &[scissor]);
-            //logical_device.cmd_draw(command_buffer, 3, 1, 0, 0);
+            logical_device.cmd_draw(command_buffer, 3, 1, 0, 0);
 
             logical_device.cmd_bind_pipeline(
                 command_buffer,
@@ -437,6 +437,7 @@ impl App {
                 0,
                 IndexType::UINT32,
             );
+            //logical_device.cmd_draw(command_buffer, 6, 1, 0, 0);
             logical_device.cmd_draw_indexed(command_buffer, 6, 1, 0, 0, 0);
             logical_device_dyn.cmd_end_rendering(command_buffer);
         }

@@ -30,7 +30,7 @@ pub struct Renderer {
     pub commands: Commands,
     pub descriptors: Descriptors,
     pub pipelines: Pipelines,
-    //pub immediate_commands: ImmediateCommands,
+    pub immediate_commands: ImmediateCommands,
     pub test_gpu_mesh_buffers: GPUMeshBuffers,
 }
 
@@ -60,7 +60,7 @@ impl Renderer {
             commands,
             descriptors,
             pipelines,
-            //immediate_commands,
+            immediate_commands,
             test_gpu_mesh_buffers,
         }
     }
@@ -96,6 +96,9 @@ impl Renderer {
                 .device_wait_idle()
                 .expect("Could not wait device idle");
         }
+        self.test_gpu_mesh_buffers
+            .cleanup(self.allocator.as_ref().unwrap());
+        self.immediate_commands.cleanup(&self.device.logical);
         self.pipelines.cleanup(&self.device.logical);
         self.swapchain
             .cleanup(&self.device.logical, self.allocator.as_ref().unwrap());

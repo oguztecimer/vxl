@@ -1,5 +1,7 @@
 use ash::vk::{Buffer, BufferCreateInfo, BufferUsageFlags, DeviceSize, MemoryPropertyFlags};
-use vk_mem::{Alloc, Allocation, AllocationCreateInfo, Allocator, MemoryUsage};
+use vk_mem::{
+    Alloc, Allocation, AllocationCreateFlags, AllocationCreateInfo, Allocator, MemoryUsage,
+};
 
 pub struct AllocatedBuffer {
     pub buffer: Buffer,
@@ -18,6 +20,7 @@ impl AllocatedBuffer {
         let allocation_create_info = AllocationCreateInfo {
             usage: memory_usage,
             preferred_flags: MemoryPropertyFlags::HOST_VISIBLE,
+            flags: AllocationCreateFlags::HOST_ACCESS_SEQUENTIAL_WRITE,
             ..Default::default()
         };
         let (buffer, allocation) =
@@ -27,7 +30,7 @@ impl AllocatedBuffer {
         Self { buffer, allocation }
     }
 
-    pub fn cleanup(&mut self, allocator: Allocator) {
+    pub fn cleanup(&mut self, allocator: &Allocator) {
         unsafe {
             allocator.destroy_buffer(self.buffer, &mut self.allocation);
         }

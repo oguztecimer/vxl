@@ -28,8 +28,7 @@ pub fn upload_mesh(
 ) -> GPUMeshBuffers {
     let index_buffer_size = size_of_val(indices) as DeviceSize;
     let vertex_buffer_size = size_of_val(vertices) as DeviceSize;
-    dbg!(index_buffer_size);
-    dbg!(vertex_buffer_size);
+
     let index_buffer = AllocatedBuffer::new(
         allocator,
         index_buffer_size,
@@ -56,7 +55,7 @@ pub fn upload_mesh(
         allocator,
         index_buffer_size + vertex_buffer_size,
         BufferUsageFlags::TRANSFER_SRC,
-        MemoryUsage::CpuOnly,
+        MemoryUsage::AutoPreferHost,
     );
 
     unsafe {
@@ -89,7 +88,7 @@ pub fn upload_mesh(
             )
         };
         let index_buffer_copy_regions = [BufferCopy::default()
-            .src_offset(0)
+            .src_offset(vertex_buffer_size)
             .dst_offset(0)
             .size(index_buffer_size)];
         unsafe {
@@ -120,17 +119,17 @@ impl GPUMeshBuffers {
             Vertex {
                 position: Vec3::new(0.5, -0.5, 0.0),
                 normal: Vec3::default(),
-                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                color: Vec4::new(1.0, 0.0, 0.0, 1.0),
             },
             Vertex {
                 position: Vec3::new(0.5, 0.5, 0.0),
                 normal: Vec3::default(),
-                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                color: Vec4::new(0.0, 1.0, 0.0, 1.0),
             },
             Vertex {
                 position: Vec3::new(-0.5, -0.5, 0.0),
                 normal: Vec3::default(),
-                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                color: Vec4::new(0.0, 0.0, 1.0, 1.0),
             },
             Vertex {
                 position: Vec3::new(-0.5, 0.5, 0.0),
@@ -139,5 +138,9 @@ impl GPUMeshBuffers {
             },
         ];
         upload_mesh(device, immediate_commands, allocator, &indices, &vertices)
+    }
+    pub fn cleanup(&mut self, allocator: &Allocator) {
+        self.index_buffer.cleanup(allocator);
+        self.vertex_buffer.cleanup(allocator);
     }
 }
