@@ -9,7 +9,7 @@ use ash::vk::{
     PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo,
     SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
 };
-use glam::{Mat4, Vec3, mat4};
+use glam::{Mat4, Vec3};
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
 use winit::application::ApplicationHandler;
@@ -190,7 +190,7 @@ impl App {
         );
 
         self.draw_background(command_buffer);
-        self.draw_compute(command_buffer);
+        //self._draw_compute(command_buffer);
 
         transition_image_layout(
             &self.renderer().device,
@@ -319,7 +319,7 @@ impl App {
             );
         }
     }
-    fn draw_compute(&mut self, command_buffer: CommandBuffer) {
+    fn _draw_compute(&mut self, command_buffer: CommandBuffer) {
         unsafe {
             self.renderer().device.logical.cmd_bind_pipeline(
                 command_buffer,
@@ -413,7 +413,7 @@ impl App {
                 PipelineBindPoint::GRAPHICS,
                 self.renderer().pipelines.mesh_pipeline.pipeline,
             );
-            let view = Mat4::from_translation(Vec3::new(0.0, 0.0, -2.0));
+            let view = Mat4::from_translation(Vec3::new(0.0, 0.0, -4.0));
             let mut projection = Mat4::perspective_rh_gl(
                 70.0,
                 self.renderer().swapchain.extent.width as f32

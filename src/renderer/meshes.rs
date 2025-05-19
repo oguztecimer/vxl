@@ -190,9 +190,8 @@ impl GPUMeshBuffers {
                 let x = f32::from_le_bytes(chunk[0..4].try_into().expect("Invalid position data"));
                 let y = f32::from_le_bytes(chunk[4..8].try_into().expect("Invalid position data"));
                 let z = f32::from_le_bytes(chunk[8..12].try_into().expect("Invalid position data"));
-                vertices[vertex_offset as usize + i].position =
-                    Vec3::new(x / 2.0, y / 2.0, z / 2.0);
-                vertices[vertex_offset as usize + i].color = Vec4::new(0.4, 0.4, 0.0, 1.0);
+                vertices[vertex_offset as usize + i].position = Vec3::new(x, y, z);
+                vertices[vertex_offset as usize + i].color = Vec4::new(1.0, 1.0, 0.0, 1.0);
             }
         }
         upload_mesh(device, immediate_commands, allocator, &indices, &vertices)
