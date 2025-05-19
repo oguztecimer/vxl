@@ -199,6 +199,13 @@ impl App {
             ImageLayout::GENERAL,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
         );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.depth_image.image,
+            ImageLayout::UNDEFINED,
+            ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
+        );
         self.draw_geometry(command_buffer);
 
         transition_image_layout(
@@ -377,9 +384,15 @@ impl App {
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             None,
         );
+        let depth_attachment_info = self.create_rendering_attachment_info(
+            self.renderer().swapchain.depth_image.image_view,
+            ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
+            None,
+        );
         let color_attachments = [attachment_info];
         let rendering_info = RenderingInfo::default()
             .color_attachments(&color_attachments)
+            .depth_attachment(&depth_attachment_info)
             .layer_count(1)
             .render_area(Rect2D {
                 offset: Offset2D::default(),
@@ -568,6 +581,7 @@ impl App {
         if let Some(clear) = clear {
             info.clear_value = clear;
         }
+        unsafe { info.clear_value.depth_stencil.depth = 0.0 };
         info
     }
 }

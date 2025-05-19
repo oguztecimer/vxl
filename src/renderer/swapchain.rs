@@ -15,6 +15,7 @@ pub struct Swapchain {
     pub images: Vec<Image>,
     pub extent: Extent2D,
     pub draw_image: AllocatedImage,
+    pub depth_image: AllocatedImage,
 }
 
 impl Swapchain {
@@ -104,6 +105,14 @@ impl Swapchain {
                 | ImageUsageFlags::COLOR_ATTACHMENT,
             ImageAspectFlags::COLOR,
         );
+        let depth_image = AllocatedImage::new(
+            device,
+            allocator,
+            Format::D32_SFLOAT,
+            extent3d,
+            ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
+            ImageAspectFlags::DEPTH,
+        );
         Self {
             handle,
             loader,
@@ -111,12 +120,14 @@ impl Swapchain {
             image_views,
             extent,
             draw_image,
+            depth_image,
         }
     }
 
     pub fn cleanup(&mut self, logical_device: &ash::Device, allocator: &Allocator) {
         unsafe {
             self.draw_image.cleanup(logical_device, allocator);
+            self.depth_image.cleanup(logical_device, allocator);
             for view in &self.image_views {
                 logical_device.destroy_image_view(*view, None)
             }

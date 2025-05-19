@@ -1,7 +1,7 @@
 use crate::renderer::descriptors::Descriptors;
 use ash::Device;
 use ash::vk::{
-    ColorComponentFlags, ComputePipelineCreateInfo, DeviceAddress, DynamicState, Format,
+    ColorComponentFlags, CompareOp, ComputePipelineCreateInfo, DeviceAddress, DynamicState, Format,
     GraphicsPipelineCreateInfo, LogicOp, Pipeline, PipelineCache,
     PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
     PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo,
@@ -70,7 +70,7 @@ impl MeshPipeline {
     pub fn new(logical_device: &Device) -> Self {
         let mut rendering_create_info = PipelineRenderingCreateInfo::default()
             .color_attachment_formats(&[Format::R16G16B16A16_SFLOAT]) //DEFERRED ICIN BIRDEN FAZLA KOY!
-            .depth_attachment_format(Format::UNDEFINED);
+            .depth_attachment_format(Format::D32_SFLOAT);
 
         let vertex_input_state_create_info = PipelineVertexInputStateCreateInfo::default();
 
@@ -130,8 +130,12 @@ impl MeshPipeline {
         let multisample_state_create_info = PipelineMultisampleStateCreateInfo::default()
             .rasterization_samples(ash::vk::SampleCountFlags::TYPE_1);
 
-        let depth_stencil_state_create_info =
-            PipelineDepthStencilStateCreateInfo::default().depth_test_enable(false);
+        let depth_stencil_state_create_info = PipelineDepthStencilStateCreateInfo::default()
+            .depth_test_enable(true)
+            .depth_write_enable(true)
+            .min_depth_bounds(0.0)
+            .max_depth_bounds(1.0)
+            .depth_compare_op(CompareOp::LESS_OR_EQUAL);
 
         let push_constant_ranges = [PushConstantRange::default()
             .offset(0)
@@ -244,7 +248,7 @@ impl GraphicsPipeline {
 
         let rasterization_state_create_info = PipelineRasterizationStateCreateInfo::default()
             .polygon_mode(PolygonMode::FILL)
-            .cull_mode(ash::vk::CullModeFlags::BACK)
+            .cull_mode(ash::vk::CullModeFlags::NONE)
             .front_face(ash::vk::FrontFace::CLOCKWISE)
             .line_width(1.0);
 
