@@ -399,14 +399,14 @@ impl App {
             let logical_device = &self.renderer().device.logical;
             let logical_device_dyn = &self.renderer().device.logical_dynamic_rendering;
             logical_device_dyn.cmd_begin_rendering(command_buffer, &rendering_info);
-            logical_device.cmd_bind_pipeline(
-                command_buffer,
-                PipelineBindPoint::GRAPHICS,
-                self.renderer().pipelines.triangle_pipeline.pipeline,
-            );
+            // logical_device.cmd_bind_pipeline(
+            //     command_buffer,
+            //     PipelineBindPoint::GRAPHICS,
+            //     self.renderer().pipelines.triangle_pipeline.pipeline,
+            // );
             logical_device.cmd_set_viewport(command_buffer, 0, &[viewport]);
             logical_device.cmd_set_scissor(command_buffer, 0, &[scissor]);
-            logical_device.cmd_draw(command_buffer, 3, 1, 0, 0);
+            //logical_device.cmd_draw(command_buffer, 3, 1, 0, 0);
 
             logical_device.cmd_bind_pipeline(
                 command_buffer,
@@ -438,7 +438,14 @@ impl App {
                 IndexType::UINT32,
             );
             //logical_device.cmd_draw(command_buffer, 6, 1, 0, 0);
-            logical_device.cmd_draw_indexed(command_buffer, 6, 1, 0, 0, 0);
+            logical_device.cmd_draw_indexed(
+                command_buffer,
+                self.renderer().test_gpu_mesh_buffers.index_count as u32,
+                1,
+                0,
+                0,
+                0,
+            );
             logical_device_dyn.cmd_end_rendering(command_buffer);
         }
     }

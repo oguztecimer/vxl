@@ -50,7 +50,14 @@ impl Renderer {
         let descriptors = Descriptors::new(&device.logical, &swapchain);
         let pipelines = Pipelines::new(&device.logical, &descriptors);
         let immediate_commands = ImmediateCommands::new(&device);
-        let test_gpu_mesh_buffers = GPUMeshBuffers::test(&device, &immediate_commands, &allocator);
+        //let test_gpu_mesh_buffers = GPUMeshBuffers::test(&device, &immediate_commands, &allocator);
+        let test_gpu_mesh_buffers = GPUMeshBuffers::load_from_glb(
+            &device,
+            &immediate_commands,
+            &allocator,
+            "resources/GLTF/basicmesh.glb",
+            2,
+        );
         Renderer {
             instance,
             surface,

@@ -3,11 +3,11 @@ use vk_mem::{
     Alloc, Allocation, AllocationCreateFlags, AllocationCreateInfo, Allocator, MemoryUsage,
 };
 
+#[derive(Debug)]
 pub struct AllocatedBuffer {
     pub buffer: Buffer,
     pub allocation: Allocation,
 }
-
 impl AllocatedBuffer {
     pub fn new(
         allocator: &Allocator,
