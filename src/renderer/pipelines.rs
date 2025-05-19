@@ -123,7 +123,7 @@ impl MeshPipeline {
 
         let rasterization_state_create_info = PipelineRasterizationStateCreateInfo::default()
             .polygon_mode(PolygonMode::FILL)
-            .cull_mode(ash::vk::CullModeFlags::NONE)
+            .cull_mode(ash::vk::CullModeFlags::BACK)
             .front_face(ash::vk::FrontFace::CLOCKWISE)
             .line_width(1.0);
 

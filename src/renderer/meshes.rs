@@ -175,6 +175,7 @@ impl GPUMeshBuffers {
                 .find(|(sem, _)| sem == &gltf::Semantic::Positions)
                 .expect("Missing POSITION attribute")
                 .1;
+
             vertices.resize(
                 vertices.len() + position_accessor.count(),
                 Vertex::default(),
@@ -191,7 +192,25 @@ impl GPUMeshBuffers {
                 let y = f32::from_le_bytes(chunk[4..8].try_into().expect("Invalid position data"));
                 let z = f32::from_le_bytes(chunk[8..12].try_into().expect("Invalid position data"));
                 vertices[vertex_offset as usize + i].position = Vec3::new(x, y, z);
-                vertices[vertex_offset as usize + i].color = Vec4::new(1.0, 1.0, 0.0, 1.0);
+            }
+
+            let normal_accessor = primitive
+                .attributes()
+                .find(|(sem, _)| sem == &gltf::Semantic::Normals)
+                .expect("Missing POSITION attribute")
+                .1;
+
+            let buffer_view = normal_accessor.view().expect("Could not access positions");
+            let offset = buffer_view.offset() + normal_accessor.offset();
+            let slice = data
+                .get(offset..offset + size_of::<Vec3>() * normal_accessor.count())
+                .expect("Could not read data");
+            for (i, chunk) in slice.chunks_exact(12).enumerate() {
+                let x = f32::from_le_bytes(chunk[0..4].try_into().expect("Invalid position data"));
+                let y = f32::from_le_bytes(chunk[4..8].try_into().expect("Invalid position data"));
+                let z = f32::from_le_bytes(chunk[8..12].try_into().expect("Invalid position data"));
+                vertices[vertex_offset as usize + i].normal = Vec3::new(x, y, z);
+                vertices[vertex_offset as usize + i].color = Vec4::new(x, y, z, 1.0);
             }
         }
         upload_mesh(device, immediate_commands, allocator, &indices, &vertices)
