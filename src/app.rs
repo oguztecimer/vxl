@@ -9,7 +9,7 @@ use ash::vk::{
     PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo,
     SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
 };
-use glam::Mat4;
+use glam::{Mat4, Vec3, mat4};
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
 use winit::application::ApplicationHandler;
@@ -413,8 +413,16 @@ impl App {
                 PipelineBindPoint::GRAPHICS,
                 self.renderer().pipelines.mesh_pipeline.pipeline,
             );
-
-            let world_matrix = Mat4::IDENTITY;
+            let view = Mat4::from_translation(Vec3::new(0.0, 0.0, -2.0));
+            let mut projection = Mat4::perspective_rh_gl(
+                70.0,
+                self.renderer().swapchain.extent.width as f32
+                    / self.renderer().swapchain.extent.height as f32,
+                0.1,
+                1000.0,
+            );
+            projection.y_axis.y *= -1.0;
+            let world_matrix = projection * view;
             let push_constants = &GPUDrawPushConstants {
                 world_matrix,
                 vertex_buffer_address: self.renderer().test_gpu_mesh_buffers.vertex_buffer_address,
