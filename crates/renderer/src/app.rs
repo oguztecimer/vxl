@@ -1,7 +1,7 @@
+use crate::Renderer;
 use crate::images::{copy_image_to_image, transition_image_layout};
 use crate::imgui::{create_imgui_renderer, setup_imgui};
 use crate::pipelines::{ComputePushConstants, GPUDrawPushConstants};
-use crate::{Renderer};
 use ash::vk::{
     AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearValue, CommandBuffer,
     CommandBufferResetFlags, CommandBufferSubmitInfo, CommandPool, Fence, ImageAspectFlags,

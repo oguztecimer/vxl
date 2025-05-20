@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 renderer = {path ="../renderer"}
+core = {path = "../core"}
+glam = "0.30.2"
