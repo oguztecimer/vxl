@@ -135,7 +135,7 @@ impl MeshPipeline {
             .depth_write_enable(true)
             .min_depth_bounds(0.0)
             .max_depth_bounds(1.0)
-            .depth_compare_op(CompareOp::LESS_OR_EQUAL);
+            .depth_compare_op(CompareOp::GREATER_OR_EQUAL);
 
         let push_constant_ranges = [PushConstantRange::default()
             .offset(0)

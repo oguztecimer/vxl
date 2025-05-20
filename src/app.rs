@@ -569,10 +569,11 @@ impl App {
         layout: ImageLayout,
         clear: Option<ClearValue>,
     ) -> RenderingAttachmentInfo {
+        let depth = layout == ImageLayout::DEPTH_ATTACHMENT_OPTIMAL;
         let mut info = RenderingAttachmentInfo::default()
             .image_view(view)
             .image_layout(layout)
-            .load_op(if clear.is_some() {
+            .load_op(if clear.is_some() || depth {
                 AttachmentLoadOp::CLEAR
             } else {
                 AttachmentLoadOp::LOAD
@@ -581,7 +582,9 @@ impl App {
         if let Some(clear) = clear {
             info.clear_value = clear;
         }
-        unsafe { info.clear_value.depth_stencil.depth = 0.0 };
+        if depth {
+            unsafe { info.clear_value.depth_stencil.depth = 0.0 };
+        }
         info
     }
 }
