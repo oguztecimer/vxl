@@ -1,0 +1,3 @@
+cargo:rerun-if-env-changed=VULKAN_SDK
+cargo:rustc-link-search=/Users/oguztecimer/VulkanSDK/1.4.313.0/macOS//lib
+cargo:rustc-link-lib=vulkan
