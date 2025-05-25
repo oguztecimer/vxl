@@ -183,7 +183,7 @@ impl App {
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.draw_image.image,
+            self.renderer().swapchain.compute_image.image,
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
         );
@@ -194,16 +194,25 @@ impl App {
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.draw_image.image,
+            self.renderer().swapchain.compute_image.image,
             ImageLayout::GENERAL,
+            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        );
+
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.final_image.image,
+            ImageLayout::UNDEFINED,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
         );
+
         self.draw_geometry(command_buffer);
 
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.draw_image.image,
+            self.renderer().swapchain.final_image.image,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             ImageLayout::TRANSFER_SRC_OPTIMAL,
         );
@@ -217,7 +226,7 @@ impl App {
         copy_image_to_image(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.draw_image.image,
+            self.renderer().swapchain.final_image.image,
             self.renderer().swapchain.images[image_index],
             self.renderer().swapchain.extent,
             self.renderer().swapchain.extent,
@@ -311,7 +320,7 @@ impl App {
         unsafe {
             self.renderer().device.logical.cmd_clear_color_image(
                 command_buffer,
-                self.renderer().swapchain.draw_image.image,
+                self.renderer().swapchain.compute_image.image,
                 ImageLayout::GENERAL,
                 &clear_color,
                 &clear_ranges,
@@ -372,7 +381,7 @@ impl App {
 
     fn draw_geometry(&mut self, command_buffer: CommandBuffer) {
         let attachment_info = self.create_rendering_attachment_info(
-            self.renderer().swapchain.draw_image.image_view,
+            self.renderer().swapchain.final_image.image_view,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             None,
         );
@@ -402,6 +411,15 @@ impl App {
                 command_buffer,
                 PipelineBindPoint::GRAPHICS,
                 self.renderer().pipelines.draw_pipeline.pipeline,
+            );
+            let descriptor_sets = [self.renderer().descriptors.full_screen_descriptor_set];
+            self.renderer().device.logical.cmd_bind_descriptor_sets(
+                command_buffer,
+                PipelineBindPoint::GRAPHICS,
+                self.renderer().pipelines.draw_pipeline.pipeline_layout,
+                0,
+                &descriptor_sets,
+                &[],
             );
             logical_device.cmd_set_viewport(command_buffer, 0, &[viewport]);
             logical_device.cmd_set_scissor(command_buffer, 0, &[scissor]);
@@ -496,10 +514,10 @@ impl App {
             return false;
         }
         self.renderer_mut().recreate_swap_chain();
-        // self.renderer().descriptors.update(
-        //     &self.renderer().device.logical,
-        //     self.renderer().swapchain.draw_image.image_view,
-        // );
+        self.renderer().descriptors.update(
+            &self.renderer().device.logical,
+            self.renderer().swapchain.compute_image.image_view,
+        );
         true
     }
 

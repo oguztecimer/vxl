@@ -14,7 +14,8 @@ pub struct Swapchain {
     pub image_views: Vec<ImageView>,
     pub images: Vec<Image>,
     pub extent: Extent2D,
-    pub draw_image: AllocatedImage,
+    pub compute_image: AllocatedImage,
+    pub final_image: AllocatedImage,
     pub frame_data: Vec<(AllocatedImage, AllocatedImage)>,
 }
 
@@ -102,6 +103,18 @@ impl Swapchain {
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
                 | ImageUsageFlags::STORAGE
+                | ImageUsageFlags::COLOR_ATTACHMENT
+                | ImageUsageFlags::SAMPLED,
+            ImageAspectFlags::COLOR,
+        );
+        let draw_image2 = AllocatedImage::new(
+            device,
+            allocator,
+            Format::R16G16B16A16_SFLOAT,
+            extent3d,
+            ImageUsageFlags::TRANSFER_SRC
+                | ImageUsageFlags::TRANSFER_DST
+                | ImageUsageFlags::STORAGE
                 | ImageUsageFlags::COLOR_ATTACHMENT,
             ImageAspectFlags::COLOR,
         );
@@ -154,14 +167,16 @@ impl Swapchain {
             images,
             image_views,
             extent,
-            draw_image,
+            compute_image: draw_image,
+            final_image: draw_image2,
             frame_data: vec![(frame_data1a, frame_data2a), (frame_data1b, frame_data2b)],
         }
     }
 
     pub fn cleanup(&mut self, logical_device: &ash::Device, allocator: &Allocator) {
         unsafe {
-            self.draw_image.cleanup(logical_device, allocator);
+            self.compute_image.cleanup(logical_device, allocator);
+            self.final_image.cleanup(logical_device, allocator);
             for frame in &mut self.frame_data {
                 frame.0.cleanup(logical_device, allocator);
                 frame.1.cleanup(logical_device, allocator);

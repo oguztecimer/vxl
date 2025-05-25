@@ -1,6 +1,12 @@
 use crate::swapchain::Swapchain;
 use ash::Device;
-use ash::vk::{DescriptorImageInfo, DescriptorPool, DescriptorPoolCreateFlags, DescriptorPoolCreateInfo, DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo, DescriptorType, ImageLayout, ImageView, ShaderStageFlags, WriteDescriptorSet};
+use ash::vk::{
+    DescriptorImageInfo, DescriptorPool, DescriptorPoolCreateFlags, DescriptorPoolCreateInfo,
+    DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout,
+    DescriptorSetLayoutBinding, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo,
+    DescriptorType, ImageLayout, ImageView, Sampler, SamplerCreateInfo, ShaderStageFlags,
+    WriteDescriptorSet,
+};
 
 pub struct Descriptors {
     pub global_descriptor_allocator: DescriptorAllocator,
@@ -8,6 +14,7 @@ pub struct Descriptors {
     pub compute_descriptor_set: DescriptorSet,
     pub full_screen_descriptor_layout: DescriptorSetLayout,
     pub full_screen_descriptor_set: DescriptorSet,
+    pub sampler: Sampler,
 }
 
 pub struct DescriptorLayoutBuilder<'a> {
@@ -16,9 +23,12 @@ pub struct DescriptorLayoutBuilder<'a> {
 
 impl Descriptors {
     pub fn new(logical_device: &Device, swapchain: &Swapchain) -> Self {
-        let sizes = [(DescriptorType::STORAGE_IMAGE, 1.0)];
+        let sizes = [
+            (DescriptorType::STORAGE_IMAGE, 1.0),
+            (DescriptorType::COMBINED_IMAGE_SAMPLER, 1.0),
+        ];
         let global_descriptor_allocator =
-            DescriptorAllocator::new(logical_device, 10, Vec::from(sizes));
+            DescriptorAllocator::new(logical_device, 20, Vec::from(sizes));
 
         let mut compute_descriptor_layout_builder = DescriptorLayoutBuilder::new();
         compute_descriptor_layout_builder.add_binding(
@@ -26,43 +36,35 @@ impl Descriptors {
             DescriptorType::STORAGE_IMAGE,
             ShaderStageFlags::COMPUTE,
         );
-        let compute_descriptor_layout = compute_descriptor_layout_builder
-            .get_layout(logical_device, DescriptorSetLayoutCreateFlags::default());
-        let compute_descriptor_set =
-            global_descriptor_allocator.allocate(logical_device, compute_descriptor_layout);
-
 
         let mut full_screen_descriptor_layout_builder = DescriptorLayoutBuilder::new();
         full_screen_descriptor_layout_builder.add_binding(
             0,
-            DescriptorType::STORAGE_IMAGE,
+            DescriptorType::COMBINED_IMAGE_SAMPLER,
             ShaderStageFlags::FRAGMENT,
         );
+        let compute_descriptor_layout = compute_descriptor_layout_builder
+            .get_layout(logical_device, DescriptorSetLayoutCreateFlags::default());
+        let compute_descriptor_set =
+            global_descriptor_allocator.allocate(logical_device, compute_descriptor_layout);
         let full_screen_descriptor_layout = full_screen_descriptor_layout_builder
             .get_layout(logical_device, DescriptorSetLayoutCreateFlags::default());
         let full_screen_descriptor_set =
             global_descriptor_allocator.allocate(logical_device, full_screen_descriptor_layout);
-
+        let sampler_create_info = SamplerCreateInfo::default()
+            .mag_filter(ash::vk::Filter::NEAREST)
+            .min_filter(ash::vk::Filter::NEAREST);
+        let sampler = unsafe { logical_device.create_sampler(&sampler_create_info, None) }
+            .expect("Failed to create sampler");
         let result = Self {
             global_descriptor_allocator,
             compute_descriptor_layout,
             compute_descriptor_set,
             full_screen_descriptor_layout,
-            full_screen_descriptor_set
+            full_screen_descriptor_set,
+            sampler,
         };
-        result.update(logical_device, swapchain.draw_image.image_view);
-
-        let image_infos = [DescriptorImageInfo::default()
-            .image_layout(ImageLayout::GENERAL)
-            .image_view(swapchain.draw_image.image_view)];
-        let draw_image_writes = [WriteDescriptorSet::default()
-            .dst_binding(0)
-            .dst_set(full_screen_descriptor_set)
-            .descriptor_count(1)
-            .descriptor_type(DescriptorType::STORAGE_IMAGE)
-            .image_info(&image_infos)];
-        unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
-
+        result.update(logical_device, swapchain.compute_image.image_view);
         result
     }
 
@@ -77,13 +79,27 @@ impl Descriptors {
             .descriptor_type(DescriptorType::STORAGE_IMAGE)
             .image_info(&image_infos)];
         unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
+
+        let image_infos = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .image_view(image_view)
+            .sampler(self.sampler)];
+        let draw_image_writes = [WriteDescriptorSet::default()
+            .dst_binding(0)
+            .dst_set(self.full_screen_descriptor_set)
+            .descriptor_count(1)
+            .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .image_info(&image_infos)];
+        unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
     }
 
     pub fn cleanup(&self, logical_device: &Device) {
         unsafe {
             logical_device.destroy_descriptor_set_layout(self.compute_descriptor_layout, None);
             logical_device.destroy_descriptor_set_layout(self.full_screen_descriptor_layout, None);
-            self.global_descriptor_allocator.destroy_pool(logical_device);
+            logical_device.destroy_sampler(self.sampler, None);
+            self.global_descriptor_allocator
+                .destroy_pool(logical_device);
         }
     }
 }
@@ -118,10 +134,6 @@ impl DescriptorLayoutBuilder<'_> {
         unsafe { logical_device.create_descriptor_set_layout(&info, None) }
             .expect("Could not create descriptor layout")
     }
-
-    // pub fn clear(&mut self) {
-    //     self.bindings.clear();
-    // }
 }
 
 pub struct DescriptorAllocator {
