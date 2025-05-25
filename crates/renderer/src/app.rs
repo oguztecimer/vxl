@@ -1,15 +1,14 @@
 use crate::Renderer;
 use crate::images::{copy_image_to_image, transition_image_layout};
 use crate::imgui::{create_imgui_renderer, setup_imgui};
-use crate::pipelines::{ComputePushConstants, GPUDrawPushConstants};
+use crate::pipelines::ComputePushConstants;
 use ash::vk::{
     AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearValue, CommandBuffer,
     CommandBufferResetFlags, CommandBufferSubmitInfo, CommandPool, Fence, ImageAspectFlags,
-    ImageLayout, ImageSubresourceRange, ImageView, IndexType, Offset2D, PipelineBindPoint,
+    ImageLayout, ImageSubresourceRange, ImageView, Offset2D, PipelineBindPoint,
     PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo,
     SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
 };
-use glam::{Mat4, Vec3};
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
 use winit::application::ApplicationHandler;
@@ -190,7 +189,7 @@ impl App {
         );
 
         self.draw_background(command_buffer);
-        //self._draw_compute(command_buffer);
+        self.draw_compute(command_buffer);
 
         transition_image_layout(
             &self.renderer().device,
@@ -198,13 +197,6 @@ impl App {
             self.renderer().swapchain.draw_image.image,
             ImageLayout::GENERAL,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-        );
-        transition_image_layout(
-            &self.renderer().device,
-            command_buffer,
-            self.renderer().swapchain.depth_image.image,
-            ImageLayout::UNDEFINED,
-            ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
         );
         self.draw_geometry(command_buffer);
 
@@ -326,7 +318,7 @@ impl App {
             );
         }
     }
-    fn _draw_compute(&mut self, command_buffer: CommandBuffer) {
+    fn draw_compute(&mut self, command_buffer: CommandBuffer) {
         unsafe {
             self.renderer().device.logical.cmd_bind_pipeline(
                 command_buffer,
@@ -384,15 +376,9 @@ impl App {
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             None,
         );
-        let depth_attachment_info = self.create_rendering_attachment_info(
-            self.renderer().swapchain.depth_image.image_view,
-            ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
-            None,
-        );
         let color_attachments = [attachment_info];
         let rendering_info = RenderingInfo::default()
             .color_attachments(&color_attachments)
-            .depth_attachment(&depth_attachment_info)
             .layer_count(1)
             .render_area(Rect2D {
                 offset: Offset2D::default(),
@@ -412,61 +398,15 @@ impl App {
             let logical_device = &self.renderer().device.logical;
             let logical_device_dyn = &self.renderer().device.logical_dynamic_rendering;
             logical_device_dyn.cmd_begin_rendering(command_buffer, &rendering_info);
-            // logical_device.cmd_bind_pipeline(
-            //     command_buffer,
-            //     PipelineBindPoint::GRAPHICS,
-            //     self.renderer().pipelines.triangle_pipeline.pipeline,
-            // );
-            logical_device.cmd_set_viewport(command_buffer, 0, &[viewport]);
-            logical_device.cmd_set_scissor(command_buffer, 0, &[scissor]);
-            //logical_device.cmd_draw(command_buffer, 3, 1, 0, 0);
-
             logical_device.cmd_bind_pipeline(
                 command_buffer,
                 PipelineBindPoint::GRAPHICS,
-                self.renderer().pipelines.mesh_pipeline.pipeline,
+                self.renderer().pipelines.draw_pipeline.pipeline,
             );
-            let view = Mat4::from_translation(Vec3::new(0.0, 0.0, -4.0));
-            let mut projection = Mat4::perspective_rh_gl(
-                70.0,
-                self.renderer().swapchain.extent.width as f32
-                    / self.renderer().swapchain.extent.height as f32,
-                0.1,
-                1000.0,
-            );
-            projection.y_axis.y *= -1.0;
-            let world_matrix = projection * view;
-            let push_constants = &GPUDrawPushConstants {
-                world_matrix,
-                vertex_buffer_address: self.renderer().test_gpu_mesh_buffers.vertex_buffer_address,
-            };
-            let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
-                push_constants as *const GPUDrawPushConstants as *const u8,
-                size_of::<GPUDrawPushConstants>(),
-            );
+            logical_device.cmd_set_viewport(command_buffer, 0, &[viewport]);
+            logical_device.cmd_set_scissor(command_buffer, 0, &[scissor]);
+            logical_device.cmd_draw(command_buffer, 4, 1, 0, 0);
 
-            logical_device.cmd_push_constants(
-                command_buffer,
-                self.renderer().pipelines.mesh_pipeline.pipeline_layout,
-                ShaderStageFlags::VERTEX,
-                0,
-                push_constants_bytes,
-            );
-            logical_device.cmd_bind_index_buffer(
-                command_buffer,
-                self.renderer().test_gpu_mesh_buffers.index_buffer.buffer,
-                0,
-                IndexType::UINT32,
-            );
-            //logical_device.cmd_draw(command_buffer, 6, 1, 0, 0);
-            logical_device.cmd_draw_indexed(
-                command_buffer,
-                self.renderer().test_gpu_mesh_buffers.index_count as u32,
-                1,
-                0,
-                0,
-                0,
-            );
             logical_device_dyn.cmd_end_rendering(command_buffer);
         }
     }
@@ -569,11 +509,10 @@ impl App {
         layout: ImageLayout,
         clear: Option<ClearValue>,
     ) -> RenderingAttachmentInfo {
-        let depth = layout == ImageLayout::DEPTH_ATTACHMENT_OPTIMAL;
         let mut info = RenderingAttachmentInfo::default()
             .image_view(view)
             .image_layout(layout)
-            .load_op(if clear.is_some() || depth {
+            .load_op(if clear.is_some() {
                 AttachmentLoadOp::CLEAR
             } else {
                 AttachmentLoadOp::LOAD
@@ -581,9 +520,6 @@ impl App {
             .store_op(AttachmentStoreOp::STORE);
         if let Some(clear) = clear {
             info.clear_value = clear;
-        }
-        if depth {
-            info.clear_value.depth_stencil.depth = 0.0;
         }
         info
     }

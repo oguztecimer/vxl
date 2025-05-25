@@ -1,5 +1,4 @@
 pub mod app;
-mod buffers;
 pub mod commands;
 mod descriptors;
 pub mod device;
@@ -7,7 +6,6 @@ pub mod images;
 mod imgui;
 mod immediate_commands;
 mod instance;
-mod meshes;
 pub mod pipelines;
 mod surface;
 mod swapchain;
@@ -16,7 +14,6 @@ use crate::commands::Commands;
 use crate::descriptors::Descriptors;
 use crate::device::Device;
 use crate::immediate_commands::ImmediateCommands;
-use crate::meshes::GPUMeshBuffers;
 use crate::pipelines::Pipelines;
 use crate::swapchain::*;
 use ash::{Entry, Instance};
@@ -33,7 +30,6 @@ pub struct Renderer {
     pub descriptors: Descriptors,
     pub pipelines: Pipelines,
     pub immediate_commands: ImmediateCommands,
-    pub test_gpu_mesh_buffers: GPUMeshBuffers,
 }
 
 impl Renderer {
@@ -52,14 +48,6 @@ impl Renderer {
         let descriptors = Descriptors::new(&device.logical, &swapchain);
         let pipelines = Pipelines::new(&device.logical, &descriptors);
         let immediate_commands = ImmediateCommands::new(&device);
-        //let test_gpu_mesh_buffers = GPUMeshBuffers::test(&device, &immediate_commands, &allocator);
-        let test_gpu_mesh_buffers = GPUMeshBuffers::load_from_glb(
-            &device,
-            &immediate_commands,
-            &allocator,
-            "resources/GLTF/basicmesh.glb",
-            2,
-        );
         Renderer {
             instance,
             surface,
@@ -70,7 +58,6 @@ impl Renderer {
             descriptors,
             pipelines,
             immediate_commands,
-            test_gpu_mesh_buffers,
         }
     }
 
@@ -105,8 +92,6 @@ impl Renderer {
                 .device_wait_idle()
                 .expect("Could not wait device idle");
         }
-        self.test_gpu_mesh_buffers
-            .cleanup(self.allocator.as_ref().unwrap());
         self.immediate_commands.cleanup(&self.device.logical);
         self.pipelines.cleanup(&self.device.logical);
         self.swapchain

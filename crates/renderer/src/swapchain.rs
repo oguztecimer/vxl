@@ -15,7 +15,7 @@ pub struct Swapchain {
     pub images: Vec<Image>,
     pub extent: Extent2D,
     pub draw_image: AllocatedImage,
-    pub depth_image: AllocatedImage,
+    pub frame_data: Vec<(AllocatedImage, AllocatedImage)>,
 }
 
 impl Swapchain {
@@ -105,14 +105,49 @@ impl Swapchain {
                 | ImageUsageFlags::COLOR_ATTACHMENT,
             ImageAspectFlags::COLOR,
         );
-        let depth_image = AllocatedImage::new(
+        let frame_data1a = AllocatedImage::new(
             device,
             allocator,
-            Format::D32_SFLOAT,
+            Format::R8G8B8A8_UINT,
             extent3d,
-            ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
-            ImageAspectFlags::DEPTH,
+            ImageUsageFlags::TRANSFER_SRC
+                | ImageUsageFlags::TRANSFER_DST
+                | ImageUsageFlags::STORAGE
+                | ImageUsageFlags::SAMPLED,
+            ImageAspectFlags::COLOR,
         );
+        let frame_data2a = AllocatedImage::new(
+            device,
+            allocator,
+            Format::R32G32B32A32_SFLOAT,
+            extent3d,
+            ImageUsageFlags::TRANSFER_SRC
+                | ImageUsageFlags::TRANSFER_DST
+                | ImageUsageFlags::STORAGE,
+            ImageAspectFlags::COLOR,
+        );
+        let frame_data1b = AllocatedImage::new(
+            device,
+            allocator,
+            Format::R8G8B8A8_UINT,
+            extent3d,
+            ImageUsageFlags::TRANSFER_SRC
+                | ImageUsageFlags::TRANSFER_DST
+                | ImageUsageFlags::STORAGE
+                | ImageUsageFlags::SAMPLED,
+            ImageAspectFlags::COLOR,
+        );
+        let frame_data2b = AllocatedImage::new(
+            device,
+            allocator,
+            Format::R32G32B32A32_SFLOAT,
+            extent3d,
+            ImageUsageFlags::TRANSFER_SRC
+                | ImageUsageFlags::TRANSFER_DST
+                | ImageUsageFlags::STORAGE,
+            ImageAspectFlags::COLOR,
+        );
+
         Self {
             handle,
             loader,
@@ -120,14 +155,17 @@ impl Swapchain {
             image_views,
             extent,
             draw_image,
-            depth_image,
+            frame_data: vec![(frame_data1a, frame_data2a), (frame_data1b, frame_data2b)],
         }
     }
 
     pub fn cleanup(&mut self, logical_device: &ash::Device, allocator: &Allocator) {
         unsafe {
             self.draw_image.cleanup(logical_device, allocator);
-            self.depth_image.cleanup(logical_device, allocator);
+            for frame in &mut self.frame_data {
+                frame.0.cleanup(logical_device, allocator);
+                frame.1.cleanup(logical_device, allocator);
+            }
             for view in &self.image_views {
                 logical_device.destroy_image_view(*view, None)
             }
