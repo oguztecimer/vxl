@@ -95,27 +95,20 @@ impl Swapchain {
             height: surface_capabilities.current_extent.height,
             depth: 1,
         };
-        let draw_image = AllocatedImage::new(
+        let compute_image = AllocatedImage::new(
             device,
             allocator,
             Format::R16G16B16A16_SFLOAT,
             extent3d,
-            ImageUsageFlags::TRANSFER_SRC
-                | ImageUsageFlags::TRANSFER_DST
-                | ImageUsageFlags::STORAGE
-                | ImageUsageFlags::COLOR_ATTACHMENT
-                | ImageUsageFlags::SAMPLED,
+            ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED,
             ImageAspectFlags::COLOR,
         );
-        let draw_image2 = AllocatedImage::new(
+        let final_image = AllocatedImage::new(
             device,
             allocator,
             Format::R16G16B16A16_SFLOAT,
             extent3d,
-            ImageUsageFlags::TRANSFER_SRC
-                | ImageUsageFlags::TRANSFER_DST
-                | ImageUsageFlags::STORAGE
-                | ImageUsageFlags::COLOR_ATTACHMENT,
+            ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::COLOR_ATTACHMENT,
             ImageAspectFlags::COLOR,
         );
         let frame_data1a = AllocatedImage::new(
@@ -167,8 +160,8 @@ impl Swapchain {
             images,
             image_views,
             extent,
-            compute_image: draw_image,
-            final_image: draw_image2,
+            compute_image,
+            final_image,
             frame_data: vec![(frame_data1a, frame_data2a), (frame_data1b, frame_data2b)],
         }
     }
