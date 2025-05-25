@@ -52,7 +52,9 @@ pub struct Pipelines {
 }
 
 impl GraphicsPipeline {
-    pub fn new(logical_device: &Device) -> Self {
+    pub fn new(logical_device: &Device,descriptors: &Descriptors) -> Self {
+        let layouts = [descriptors.full_screen_descriptor_layout];
+
         let mut rendering_create_info = PipelineRenderingCreateInfo::default()
             .color_attachment_formats(&[Format::R16G16B16A16_SFLOAT]) //DEFERRED ICIN BIRDEN FAZLA KOY!
             .depth_attachment_format(Format::UNDEFINED);
@@ -118,7 +120,7 @@ impl GraphicsPipeline {
         let depth_stencil_state_create_info =
             PipelineDepthStencilStateCreateInfo::default().depth_test_enable(false);
 
-        let pipeline_layout_create_info = PipelineLayoutCreateInfo::default();
+        let pipeline_layout_create_info = PipelineLayoutCreateInfo::default().set_layouts(&layouts);
         let pipeline_layout =
             unsafe { logical_device.create_pipeline_layout(&pipeline_layout_create_info, None) }
                 .expect("Could not create pipeline layout");
@@ -173,7 +175,7 @@ impl ComputePipeline {
         shader_index: usize,
         data: ComputePushConstants,
     ) -> Self {
-        let layouts = [descriptors.draw_image_descriptor_layout];
+        let layouts = [descriptors.compute_descriptor_layout];
         let push_constant_ranges = [PushConstantRange::default()
             .offset(0)
             .size(size_of::<ComputePushConstants>() as u32)
@@ -249,7 +251,7 @@ impl Pipelines {
                 },
             ),
         ];
-        let draw_pipeline = GraphicsPipeline::new(logical_device);
+        let draw_pipeline = GraphicsPipeline::new(logical_device,descriptors);
         Self {
             compute_pipelines,
             active_compute_pipeline_index: 0,

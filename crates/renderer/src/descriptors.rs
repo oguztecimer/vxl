@@ -1,16 +1,13 @@
 use crate::swapchain::Swapchain;
 use ash::Device;
-use ash::vk::{
-    DescriptorImageInfo, DescriptorPool, DescriptorPoolCreateFlags, DescriptorPoolCreateInfo,
-    DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout,
-    DescriptorSetLayoutBinding, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo,
-    DescriptorType, ImageLayout, ImageView, ShaderStageFlags, WriteDescriptorSet,
-};
+use ash::vk::{DescriptorImageInfo, DescriptorPool, DescriptorPoolCreateFlags, DescriptorPoolCreateInfo, DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo, DescriptorType, ImageLayout, ImageView, ShaderStageFlags, WriteDescriptorSet};
 
 pub struct Descriptors {
     pub global_descriptor_allocator: DescriptorAllocator,
-    pub draw_image_descriptor_layout: DescriptorSetLayout,
-    pub draw_image_descriptor_set: DescriptorSet,
+    pub compute_descriptor_layout: DescriptorSetLayout,
+    pub compute_descriptor_set: DescriptorSet,
+    pub full_screen_descriptor_layout: DescriptorSetLayout,
+    pub full_screen_descriptor_set: DescriptorSet,
 }
 
 pub struct DescriptorLayoutBuilder<'a> {
@@ -22,23 +19,49 @@ impl Descriptors {
         let sizes = [(DescriptorType::STORAGE_IMAGE, 1.0)];
         let global_descriptor_allocator =
             DescriptorAllocator::new(logical_device, 10, Vec::from(sizes));
-        let mut descriptor_layout_builder = DescriptorLayoutBuilder::new();
-        descriptor_layout_builder.add_binding(
+
+        let mut compute_descriptor_layout_builder = DescriptorLayoutBuilder::new();
+        compute_descriptor_layout_builder.add_binding(
             0,
             DescriptorType::STORAGE_IMAGE,
             ShaderStageFlags::COMPUTE,
         );
-        let draw_image_descriptor_layout = descriptor_layout_builder
+        let compute_descriptor_layout = compute_descriptor_layout_builder
             .get_layout(logical_device, DescriptorSetLayoutCreateFlags::default());
-        let draw_image_descriptor_set =
-            global_descriptor_allocator.allocate(logical_device, draw_image_descriptor_layout);
+        let compute_descriptor_set =
+            global_descriptor_allocator.allocate(logical_device, compute_descriptor_layout);
+
+
+        let mut full_screen_descriptor_layout_builder = DescriptorLayoutBuilder::new();
+        full_screen_descriptor_layout_builder.add_binding(
+            0,
+            DescriptorType::STORAGE_IMAGE,
+            ShaderStageFlags::FRAGMENT,
+        );
+        let full_screen_descriptor_layout = full_screen_descriptor_layout_builder
+            .get_layout(logical_device, DescriptorSetLayoutCreateFlags::default());
+        let full_screen_descriptor_set =
+            global_descriptor_allocator.allocate(logical_device, full_screen_descriptor_layout);
 
         let result = Self {
             global_descriptor_allocator,
-            draw_image_descriptor_layout,
-            draw_image_descriptor_set,
+            compute_descriptor_layout,
+            compute_descriptor_set,
+            full_screen_descriptor_layout,
+            full_screen_descriptor_set
         };
         result.update(logical_device, swapchain.draw_image.image_view);
+
+        let image_infos = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::GENERAL)
+            .image_view(swapchain.draw_image.image_view)];
+        let draw_image_writes = [WriteDescriptorSet::default()
+            .dst_binding(0)
+            .dst_set(full_screen_descriptor_set)
+            .descriptor_count(1)
+            .descriptor_type(DescriptorType::STORAGE_IMAGE)
+            .image_info(&image_infos)];
+        unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
 
         result
     }
@@ -49,7 +72,7 @@ impl Descriptors {
             .image_view(image_view)];
         let draw_image_writes = [WriteDescriptorSet::default()
             .dst_binding(0)
-            .dst_set(self.draw_image_descriptor_set)
+            .dst_set(self.compute_descriptor_set)
             .descriptor_count(1)
             .descriptor_type(DescriptorType::STORAGE_IMAGE)
             .image_info(&image_infos)];
@@ -58,9 +81,9 @@ impl Descriptors {
 
     pub fn cleanup(&self, logical_device: &Device) {
         unsafe {
-            logical_device.destroy_descriptor_set_layout(self.draw_image_descriptor_layout, None);
-            self.global_descriptor_allocator
-                .destroy_pool(logical_device);
+            logical_device.destroy_descriptor_set_layout(self.compute_descriptor_layout, None);
+            logical_device.destroy_descriptor_set_layout(self.full_screen_descriptor_layout, None);
+            self.global_descriptor_allocator.destroy_pool(logical_device);
         }
     }
 }
@@ -127,13 +150,6 @@ impl DescriptorAllocator {
             .expect("Could not create descriptor pool");
         Self { pool }
     }
-
-    // pub fn clear_descriptors(&self, logical_device: &Device) {
-    //     unsafe {
-    //         logical_device.reset_descriptor_pool(self.pool, DescriptorPoolResetFlags::empty())
-    //     }
-    //     .expect("Could not reset descriptor pool")
-    // }
 
     pub fn destroy_pool(&self, logical_device: &Device) {
         unsafe { logical_device.destroy_descriptor_pool(self.pool, None) };

@@ -40,11 +40,21 @@
 
 
 
-#version 450
+#version 460
+
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 color;
 
-void main() {
+layout(set = 0, binding = 0) uniform sampler2D image;
 
+//layout( push_constant ) uniform constants
+//{
+//    vec2 offset;
+//    float scale;
+//} PushConstants;
+
+
+void main() {
     color = vec4(1.0,0.0,0.0,1.0);
+    //color = texture(image,uv);
 }

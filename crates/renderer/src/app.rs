@@ -328,7 +328,7 @@ impl App {
                     .get_current_compute_pipeline()
                     .pipeline,
             );
-            let descriptor_sets = [self.renderer().descriptors.draw_image_descriptor_set];
+            let descriptor_sets = [self.renderer().descriptors.compute_descriptor_set];
             self.renderer().device.logical.cmd_bind_descriptor_sets(
                 command_buffer,
                 PipelineBindPoint::COMPUTE,
@@ -496,10 +496,10 @@ impl App {
             return false;
         }
         self.renderer_mut().recreate_swap_chain();
-        self.renderer().descriptors.update(
-            &self.renderer().device.logical,
-            self.renderer().swapchain.draw_image.image_view,
-        );
+        // self.renderer().descriptors.update(
+        //     &self.renderer().device.logical,
+        //     self.renderer().swapchain.draw_image.image_view,
+        // );
         true
     }
 
