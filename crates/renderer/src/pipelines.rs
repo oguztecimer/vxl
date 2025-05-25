@@ -32,7 +32,6 @@ pub struct ComputePushConstants {
 }
 
 pub struct ComputePipeline {
-    pub name: String,
     pub pipeline: Pipeline,
     pub pipeline_layout: PipelineLayout,
     pub shader_module: ShaderModule,
@@ -46,8 +45,7 @@ pub struct GraphicsPipeline {
 }
 
 pub struct Pipelines {
-    pub compute_pipelines: Vec<ComputePipeline>,
-    pub active_compute_pipeline_index: usize,
+    pub simulation_pipeline: ComputePipeline,
     pub draw_pipeline: GraphicsPipeline,
 }
 
@@ -170,7 +168,6 @@ impl ComputePipeline {
     pub fn new(
         logical_device: &Device,
         descriptors: &Descriptors,
-        name: String,
         shader_index: usize,
         data: ComputePushConstants,
     ) -> Self {
@@ -205,7 +202,6 @@ impl ComputePipeline {
         }
         .expect("Could not create compute pipelines")[0];
         Self {
-            name,
             pipeline,
             pipeline_layout,
             shader_module,
@@ -224,57 +220,26 @@ impl ComputePipeline {
 
 impl Pipelines {
     pub fn new(logical_device: &Device, descriptors: &Descriptors) -> Self {
-        let compute_pipelines: Vec<ComputePipeline> = vec![
-            ComputePipeline::new(
-                logical_device,
-                descriptors,
-                String::from("Deneme1"),
-                1,
-                ComputePushConstants {
-                    data1: Vec4::new(1.0, 0.0, 0.0, 1.0),
-                    data2: Vec4::new(0.0, 0.0, 1.0, 1.0),
-                    data3: Vec4::new(0.0, 1.0, 0.0, 1.0),
-                    data4: Vec4::new(0.0, 0.0, 0.0, 1.0),
-                },
-            ),
-            ComputePipeline::new(
-                logical_device,
-                descriptors,
-                String::from("Deneme2"),
-                0,
-                ComputePushConstants {
-                    data1: Vec4::new(1.0, 0.0, 0.0, 1.0),
-                    data2: Vec4::new(0.0, 0.0, 1.0, 1.0),
-                    data3: Vec4::new(0.0, 1.0, 0.0, 1.0),
-                    data4: Vec4::new(0.0, 0.0, 0.0, 1.0),
-                },
-            ),
-        ];
+        let simulation_pipeline = ComputePipeline::new(
+            logical_device,
+            descriptors,
+            1,
+            ComputePushConstants {
+                data1: Vec4::new(1.0, 0.0, 0.0, 1.0),
+                data2: Vec4::new(0.0, 0.0, 1.0, 1.0),
+                data3: Vec4::new(0.0, 1.0, 0.0, 1.0),
+                data4: Vec4::new(0.0, 0.0, 0.0, 1.0),
+            },
+        );
         let draw_pipeline = GraphicsPipeline::new(logical_device, descriptors);
         Self {
-            compute_pipelines,
-            active_compute_pipeline_index: 0,
+            simulation_pipeline,
             draw_pipeline,
         }
     }
 
-    pub fn get_current_compute_pipeline(&self) -> &ComputePipeline {
-        &self.compute_pipelines[self.active_compute_pipeline_index]
-    }
-
-    pub fn get_current_compute_pipeline_mut(&mut self) -> &mut ComputePipeline {
-        &mut self.compute_pipelines[self.active_compute_pipeline_index]
-    }
-
-    pub fn toggle_current_compute_pipeline(&mut self) {
-        self.active_compute_pipeline_index =
-            (self.active_compute_pipeline_index + 1) % self.compute_pipelines.len();
-    }
-
     pub fn cleanup(&self, logical_device: &Device) {
         self.draw_pipeline.cleanup(logical_device);
-        for effect in self.compute_pipelines.iter() {
-            effect.cleanup(logical_device);
-        }
+        self.simulation_pipeline.cleanup(logical_device);
     }
 }
