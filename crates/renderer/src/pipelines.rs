@@ -178,8 +178,7 @@ impl ComputePipeline {
         let pipeline_layout =
             unsafe { logical_device.create_pipeline_layout(&pipeline_layout_create_info, None) }
                 .expect("Could not create pipeline layout");
-        let shader_module_create_info =
-            ShaderModuleCreateInfo::default().code(SIM);
+        let shader_module_create_info = ShaderModuleCreateInfo::default().code(SIM);
         let shader_module =
             unsafe { logical_device.create_shader_module(&shader_module_create_info, None) }
                 .expect("Could not create shader module");

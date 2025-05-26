@@ -460,6 +460,7 @@ dependencies = [
  "core",
  "glam",
  "renderer",
+ "winit",
 ]
 
 [[package]]

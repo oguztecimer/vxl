@@ -238,10 +238,10 @@ impl App {
             ImageLayout::TRANSFER_DST_OPTIMAL,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
         );
-        self.draw_imgui(
-            command_buffer,
-            self.renderer().swapchain.image_views[image_index],
-        );
+        // self.draw_imgui(
+        //     command_buffer,
+        //     self.renderer().swapchain.image_views[image_index],
+        // );
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
@@ -422,7 +422,7 @@ impl App {
         }
     }
 
-    fn draw_imgui(&mut self, command_buffer: CommandBuffer, target_image_view: ImageView) {
+    fn _draw_imgui(&mut self, command_buffer: CommandBuffer, target_image_view: ImageView) {
         let color_attachment = self.create_rendering_attachment_info(
             target_image_view,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,

@@ -7,9 +7,33 @@ layout (local_size_x = 16, local_size_y = 16) in;
 //descriptor bindings for the pipeline
 layout(rgba16f,set = 0, binding = 0) uniform image2D image;
 
+layout(r8ui,set = 0, binding = 1) uniform uimage2D material_i;
+layout(rgba16f,set = 0, binding = 2) uniform image2D properties_i;
+
+layout(r8ui,set = 0, binding = 3) uniform uimage2D material_o;
+layout(rgba16f,set = 0, binding = 4) uniform image2D properties_o;
+
+layout( push_constant ) uniform constants
+{
+    bool swap_io;
+} PushConstants;
+
+
 
 void main()
 {
+    ivec2 coords = ivec2(gl_GlobalInvocationID.xy);
+    uint material;
+    vec4 properties;
+    if (PushConstants.swap_io) {
+        material = imageLoad(material_o, coords).r;
+        properties = imageLoad(properties_o, coords);
+    } else {
+        material = imageLoad(material_i, coords).r;
+        properties = imageLoad(properties_i, coords);
+    }
+
+
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(image);
 
