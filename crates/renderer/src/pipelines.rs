@@ -15,10 +15,7 @@ use glam::Vec4;
 use std::ffi::CString;
 use vk_shader_macros::include_glsl;
 
-const COMP_SHADERS: [&[u32]; 2] = [
-    include_glsl!("../../resources/shaders/example/gradient_color.comp"),
-    include_glsl!("../../resources/shaders/example/gradient.comp"),
-];
+const SIM: &[u32] = include_glsl!("../../resources/shaders/simulation.comp");
 const VERT: &[u32] = include_glsl!("../../resources/shaders/fullScreen.vert");
 const FRAG: &[u32] = include_glsl!("../../resources/shaders/fullScreen.frag");
 
@@ -168,7 +165,6 @@ impl ComputePipeline {
     pub fn new(
         logical_device: &Device,
         descriptors: &Descriptors,
-        shader_index: usize,
         data: ComputePushConstants,
     ) -> Self {
         let layouts = [descriptors.compute_descriptor_layout];
@@ -183,7 +179,7 @@ impl ComputePipeline {
             unsafe { logical_device.create_pipeline_layout(&pipeline_layout_create_info, None) }
                 .expect("Could not create pipeline layout");
         let shader_module_create_info =
-            ShaderModuleCreateInfo::default().code(COMP_SHADERS[shader_index]);
+            ShaderModuleCreateInfo::default().code(SIM);
         let shader_module =
             unsafe { logical_device.create_shader_module(&shader_module_create_info, None) }
                 .expect("Could not create shader module");
@@ -223,7 +219,6 @@ impl Pipelines {
         let simulation_pipeline = ComputePipeline::new(
             logical_device,
             descriptors,
-            1,
             ComputePushConstants {
                 data1: Vec4::new(1.0, 0.0, 0.0, 1.0),
                 data2: Vec4::new(0.0, 0.0, 1.0, 1.0),
