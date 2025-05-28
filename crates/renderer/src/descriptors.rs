@@ -4,8 +4,7 @@ use ash::vk::{
     DescriptorImageInfo, DescriptorPool, DescriptorPoolCreateFlags, DescriptorPoolCreateInfo,
     DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout,
     DescriptorSetLayoutBinding, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo,
-    DescriptorType, ImageLayout, ImageView, Sampler, SamplerCreateInfo, ShaderStageFlags,
-    WriteDescriptorSet,
+    DescriptorType, ImageLayout, Sampler, SamplerCreateInfo, ShaderStageFlags, WriteDescriptorSet,
 };
 
 pub struct Descriptors {
@@ -33,6 +32,26 @@ impl Descriptors {
         let mut compute_descriptor_layout_builder = DescriptorLayoutBuilder::new();
         compute_descriptor_layout_builder.add_binding(
             0,
+            DescriptorType::STORAGE_IMAGE,
+            ShaderStageFlags::COMPUTE,
+        );
+        compute_descriptor_layout_builder.add_binding(
+            1,
+            DescriptorType::STORAGE_IMAGE,
+            ShaderStageFlags::COMPUTE,
+        );
+        compute_descriptor_layout_builder.add_binding(
+            2,
+            DescriptorType::STORAGE_IMAGE,
+            ShaderStageFlags::COMPUTE,
+        );
+        compute_descriptor_layout_builder.add_binding(
+            3,
+            DescriptorType::STORAGE_IMAGE,
+            ShaderStageFlags::COMPUTE,
+        );
+        compute_descriptor_layout_builder.add_binding(
+            4,
             DescriptorType::STORAGE_IMAGE,
             ShaderStageFlags::COMPUTE,
         );
@@ -64,25 +83,70 @@ impl Descriptors {
             full_screen_descriptor_set,
             sampler,
         };
-        result.update(logical_device, swapchain.compute_image.image_view);
+        result.update(logical_device, swapchain);
         result
     }
 
-    pub fn update(&self, logical_device: &Device, image_view: ImageView) {
-        let image_infos = [DescriptorImageInfo::default()
+    fn update_compute(&self, logical_device: &Device, swapchain: &Swapchain) {
+        let image_infos_0 = [DescriptorImageInfo::default()
             .image_layout(ImageLayout::GENERAL)
-            .image_view(image_view)];
-        let draw_image_writes = [WriteDescriptorSet::default()
-            .dst_binding(0)
-            .dst_set(self.compute_descriptor_set)
-            .descriptor_count(1)
-            .descriptor_type(DescriptorType::STORAGE_IMAGE)
-            .image_info(&image_infos)];
-        unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
+            .image_view(swapchain.compute_image.image_view)];
 
+        let image_infos_1 = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::GENERAL)
+            .image_view(swapchain.properties1_in.image_view)];
+
+        let image_infos_2 = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::GENERAL)
+            .image_view(swapchain.properties1_out.image_view)];
+
+        let image_infos_3 = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::GENERAL)
+            .image_view(swapchain.properties2_in.image_view)];
+
+        let image_infos_4 = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::GENERAL)
+            .image_view(swapchain.properties2_out.image_view)];
+
+        let draw_image_writes = [
+            WriteDescriptorSet::default()
+                .dst_binding(0)
+                .dst_set(self.compute_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::STORAGE_IMAGE)
+                .image_info(&image_infos_0),
+            WriteDescriptorSet::default()
+                .dst_binding(1)
+                .dst_set(self.compute_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::STORAGE_IMAGE)
+                .image_info(&image_infos_1),
+            WriteDescriptorSet::default()
+                .dst_binding(2)
+                .dst_set(self.compute_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::STORAGE_IMAGE)
+                .image_info(&image_infos_2),
+            WriteDescriptorSet::default()
+                .dst_binding(3)
+                .dst_set(self.compute_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::STORAGE_IMAGE)
+                .image_info(&image_infos_3),
+            WriteDescriptorSet::default()
+                .dst_binding(4)
+                .dst_set(self.compute_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::STORAGE_IMAGE)
+                .image_info(&image_infos_4),
+        ];
+        unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
+    }
+
+    fn update_full_screen(&self, logical_device: &Device, swapchain: &Swapchain) {
         let image_infos = [DescriptorImageInfo::default()
             .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-            .image_view(image_view)
+            .image_view(swapchain.compute_image.image_view)
             .sampler(self.sampler)];
         let draw_image_writes = [WriteDescriptorSet::default()
             .dst_binding(0)
@@ -91,6 +155,11 @@ impl Descriptors {
             .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
             .image_info(&image_infos)];
         unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
+    }
+
+    pub fn update(&self, logical_device: &Device, swapchain: &Swapchain) {
+        self.update_compute(logical_device, swapchain);
+        self.update_full_screen(logical_device, swapchain);
     }
 
     pub fn cleanup(&self, logical_device: &Device) {

@@ -15,8 +15,11 @@ pub struct Swapchain {
     pub images: Vec<Image>,
     pub extent: Extent2D,
     pub compute_image: AllocatedImage,
+    pub properties1_in: AllocatedImage,
+    pub properties1_out: AllocatedImage,
+    pub properties2_in: AllocatedImage,
+    pub properties2_out: AllocatedImage,
     pub final_image: AllocatedImage,
-    pub frame_data: Vec<(AllocatedImage, AllocatedImage)>,
 }
 
 impl Swapchain {
@@ -111,42 +114,41 @@ impl Swapchain {
             ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::COLOR_ATTACHMENT,
             ImageAspectFlags::COLOR,
         );
-        let frame_data1a = AllocatedImage::new(
+        let properties1_in = AllocatedImage::new(
             device,
             allocator,
             Format::R8G8B8A8_UINT,
-            extent3d,
-            ImageUsageFlags::TRANSFER_SRC
-                | ImageUsageFlags::TRANSFER_DST
-                | ImageUsageFlags::STORAGE
-                | ImageUsageFlags::SAMPLED,
-            ImageAspectFlags::COLOR,
-        );
-        let frame_data2a = AllocatedImage::new(
-            device,
-            allocator,
-            Format::R32G32B32A32_SFLOAT,
             extent3d,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
                 | ImageUsageFlags::STORAGE,
             ImageAspectFlags::COLOR,
         );
-        let frame_data1b = AllocatedImage::new(
+        let properties1_out = AllocatedImage::new(
             device,
             allocator,
             Format::R8G8B8A8_UINT,
             extent3d,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
-                | ImageUsageFlags::STORAGE
-                | ImageUsageFlags::SAMPLED,
+                | ImageUsageFlags::STORAGE,
             ImageAspectFlags::COLOR,
         );
-        let frame_data2b = AllocatedImage::new(
+        let properties2_in = AllocatedImage::new(
             device,
             allocator,
-            Format::R32G32B32A32_SFLOAT,
+            Format::R16G16B16A16_SFLOAT,
+            extent3d,
+            ImageUsageFlags::TRANSFER_SRC
+                | ImageUsageFlags::TRANSFER_DST
+                | ImageUsageFlags::STORAGE,
+            ImageAspectFlags::COLOR,
+        );
+
+        let properties2_out = AllocatedImage::new(
+            device,
+            allocator,
+            Format::R16G16B16A16_SFLOAT,
             extent3d,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
@@ -161,19 +163,22 @@ impl Swapchain {
             image_views,
             extent,
             compute_image,
+            properties1_in,
+            properties1_out,
+            properties2_in,
+            properties2_out,
             final_image,
-            frame_data: vec![(frame_data1a, frame_data2a), (frame_data1b, frame_data2b)],
         }
     }
 
     pub fn cleanup(&mut self, logical_device: &ash::Device, allocator: &Allocator) {
         unsafe {
             self.compute_image.cleanup(logical_device, allocator);
+            self.properties1_in.cleanup(logical_device, allocator);
+            self.properties1_out.cleanup(logical_device, allocator);
+            self.properties2_in.cleanup(logical_device, allocator);
+            self.properties2_out.cleanup(logical_device, allocator);
             self.final_image.cleanup(logical_device, allocator);
-            for frame in &mut self.frame_data {
-                frame.0.cleanup(logical_device, allocator);
-                frame.1.cleanup(logical_device, allocator);
-            }
             for view in &self.image_views {
                 logical_device.destroy_image_view(*view, None)
             }

@@ -11,7 +11,6 @@ use ash::vk::{
     PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, PushConstantRange,
     ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags,
 };
-use glam::Vec4;
 use std::ffi::CString;
 use vk_shader_macros::include_glsl;
 
@@ -22,10 +21,7 @@ const FRAG: &[u32] = include_glsl!("../../resources/shaders/fullScreen.frag");
 #[repr(C)]
 #[derive(Default)]
 pub struct ComputePushConstants {
-    pub data1: Vec4,
-    pub data2: Vec4,
-    pub data3: Vec4,
-    pub data4: Vec4,
+    pub swap_io: bool,
 }
 
 pub struct ComputePipeline {
@@ -218,12 +214,7 @@ impl Pipelines {
         let simulation_pipeline = ComputePipeline::new(
             logical_device,
             descriptors,
-            ComputePushConstants {
-                data1: Vec4::new(1.0, 0.0, 0.0, 1.0),
-                data2: Vec4::new(0.0, 0.0, 1.0, 1.0),
-                data3: Vec4::new(0.0, 1.0, 0.0, 1.0),
-                data4: Vec4::new(0.0, 0.0, 0.0, 1.0),
-            },
+            ComputePushConstants { swap_io: false },
         );
         let draw_pipeline = GraphicsPipeline::new(logical_device, descriptors);
         Self {
@@ -235,5 +226,11 @@ impl Pipelines {
     pub fn cleanup(&self, logical_device: &Device) {
         self.draw_pipeline.cleanup(logical_device);
         self.simulation_pipeline.cleanup(logical_device);
+    }
+}
+
+impl ComputePushConstants {
+    pub fn swap(&mut self) {
+        self.swap_io = !self.swap_io;
     }
 }

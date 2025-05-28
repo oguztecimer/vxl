@@ -167,7 +167,6 @@ impl App {
         }
         .expect("Could not acquire next image")
         .0 as usize;
-
         let command_buffer = self.renderer().commands.get_current_frame().command_buffer;
         unsafe {
             self.renderer()
@@ -351,6 +350,11 @@ impl App {
                 push_constants as *const ComputePushConstants as *const u8,
                 size_of::<ComputePushConstants>(),
             );
+            self.renderer_mut()
+                .pipelines
+                .simulation_pipeline
+                .data
+                .swap();
 
             self.renderer().device.logical.cmd_push_constants(
                 command_buffer,
@@ -441,48 +445,23 @@ impl App {
                 .device
                 .logical_dynamic_rendering
                 .cmd_begin_rendering(command_buffer, &rendering_info);
-            let frame_number = self.renderer().commands.frame_number;
-            let pipelines = &mut self.renderer.as_mut().unwrap().pipelines;
             let imgui_context_mut = self.imgui_context.as_mut().unwrap();
             let imgui_renderer_mut = self.imgui_renderer.as_mut().unwrap();
             let imgui_platform_mut = self.imgui_platform.as_mut().unwrap();
-
             let window = self.window.as_ref().unwrap();
             imgui_platform_mut
                 .prepare_frame(imgui_context_mut.io_mut(), window)
                 .expect("Failed to prepare frame");
             let ui = imgui_context_mut.frame();
-
-            // Get a single mutable reference to the current effect's data
-            let effect_data = &mut pipelines.simulation_pipeline.data;
-
-            // Mutable references to data1 and data2 fields
-            let data1 = &mut effect_data.data1;
-            let data2 = &mut effect_data.data2;
-            //let mut toggle_shader = false;
-
+            ui.show_demo_window(&mut true);
             ui.window("Debug")
                 .size([400.0, 200.0], imgui::Condition::FirstUseEver)
                 .build(|| {
-                    {
-                        ui.text(format!("Frame: {}", frame_number));
-                    }
-
-                    ui.slider("x", 0f32, 1f32, &mut data1.x);
-                    ui.slider("y", 0f32, 1f32, &mut data1.y);
-                    ui.slider("z", 0f32, 1f32, &mut data1.z);
-
-                    ui.slider("x2", 0f32, 1f32, &mut data2.x);
-                    ui.slider("y2", 0f32, 1f32, &mut data2.y);
-                    ui.slider("z2", 0f32, 1f32, &mut data2.z);
-
-                    // if ui.button(format!("Toggle Shader - {}", active_effect_name)) {
-                    //     toggle_shader = true;
+                    // {
+                    //     ui.text(format!("Frame: {}", frame_number));
                     // }
+                    ui.show_demo_window(&mut true);
                 });
-            // if toggle_shader {
-            //     pipelines.toggle_current_compute_pipeline();
-            // }
             imgui_platform_mut.prepare_render(ui, window);
             let draw_data = imgui_context_mut.render();
             imgui_renderer_mut
@@ -501,10 +480,9 @@ impl App {
             return false;
         }
         self.renderer_mut().recreate_swap_chain();
-        self.renderer().descriptors.update(
-            &self.renderer().device.logical,
-            self.renderer().swapchain.compute_image.image_view,
-        );
+        self.renderer()
+            .descriptors
+            .update(&self.renderer().device.logical, &self.renderer().swapchain);
         true
     }
 

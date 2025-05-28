@@ -1,36 +1,35 @@
 //GLSL version to use
 #version 460
-
 //size of a workgroup for compute
 layout (local_size_x = 16, local_size_y = 16) in;
 
 //descriptor bindings for the pipeline
 layout(rgba16f,set = 0, binding = 0) uniform image2D image;
+//layout(rgba16f,set = 0, binding = 1) uniform image2D properties1;
 
-layout(r8ui,set = 0, binding = 1) uniform uimage2D material_i;
-layout(rgba16f,set = 0, binding = 2) uniform image2D properties_i;
+layout(rgba16ui,set = 0, binding = 1) uniform uimage2D properties1_in;
+layout(rgba16ui,set = 0, binding = 2) uniform uimage2D properties1_out;
 
-layout(r8ui,set = 0, binding = 3) uniform uimage2D material_o;
-layout(rgba16f,set = 0, binding = 4) uniform image2D properties_o;
+layout(rgba16f,set = 0, binding = 3) uniform image2D properties2_in;
+layout(rgba16f,set = 0, binding = 4) uniform image2D properties2_out;
 
 layout( push_constant ) uniform constants
 {
     bool swap_io;
 } PushConstants;
 
-
-
 void main()
 {
+
     ivec2 coords = ivec2(gl_GlobalInvocationID.xy);
-    uint material;
-    vec4 properties;
+    uvec4 properties1;
+    vec4 properties2;
     if (PushConstants.swap_io) {
-        material = imageLoad(material_o, coords).r;
-        properties = imageLoad(properties_o, coords);
+        properties1 = imageLoad(properties1_out, coords);
+        properties2 = imageLoad(properties2_out, coords);
     } else {
-        material = imageLoad(material_i, coords).r;
-        properties = imageLoad(properties_i, coords);
+        properties1 = imageLoad(properties1_in, coords);
+        properties2 = imageLoad(properties2_in, coords);
     }
 
 
@@ -46,7 +45,7 @@ void main()
             color.x = float(texelCoord.x)/(size.x);
             color.y = float(texelCoord.y)/(size.y);
         }
-
-        imageStore(image, texelCoord, color);
+        imageStore(properties2_in, texelCoord, color);
+        imageStore(image, texelCoord, properties2);
     }
 }
