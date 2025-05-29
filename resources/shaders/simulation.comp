@@ -1,11 +1,8 @@
-//GLSL version to use
 #version 460
-//size of a workgroup for compute
+
 layout (local_size_x = 16, local_size_y = 16) in;
 
-//descriptor bindings for the pipeline
 layout(rgba16f,set = 0, binding = 0) uniform image2D image;
-//layout(rgba16f,set = 0, binding = 1) uniform image2D properties1;
 
 layout(rgba16ui,set = 0, binding = 1) uniform uimage2D properties1_in;
 layout(rgba16ui,set = 0, binding = 2) uniform uimage2D properties1_out;
@@ -18,34 +15,54 @@ layout( push_constant ) uniform constants
     bool swap_io;
 } PushConstants;
 
+uvec4 properties1_i,properties1_o;
+void write(ivec2 coord);
+void clear(ivec2 coord);
+uvec4 load_properties1(ivec2 coord);
+
 void main()
 {
-
     ivec2 coords = ivec2(gl_GlobalInvocationID.xy);
-    uvec4 properties1;
-    vec4 properties2;
-    if (PushConstants.swap_io) {
-        properties1 = imageLoad(properties1_out, coords);
-        properties2 = imageLoad(properties2_out, coords);
-    } else {
-        properties1 = imageLoad(properties1_in, coords);
-        properties2 = imageLoad(properties2_in, coords);
+    properties1_i = load_properties1(coords);
+
+
+    if (coords.x == 100 && coords.y == 10) {
+        properties1_o.r = 1;
+        write(coords);
     }
 
-
-    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 size = imageSize(image);
-
-    if(texelCoord.x < size.x && texelCoord.y < size.y)
-    {
-        vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
-
-        if(gl_LocalInvocationID.x != 0 && gl_LocalInvocationID.y != 0)
-        {
-            color.x = float(texelCoord.x)/(size.x);
-            color.y = float(texelCoord.y)/(size.y);
+    if (properties1_i.r == 1){
+        ivec2 bottom = coords + ivec2(0,1);
+        properties1_o = properties1_i;
+        if (bottom.y<100 && load_properties1(bottom).r == 0) {
+            write(bottom);
+            clear(coords);
+        }else{
+            write(coords);
         }
-        imageStore(properties2_in, texelCoord, color);
-        imageStore(image, texelCoord, properties2);
+    }
+}
+
+void write(ivec2 coord){
+    if (PushConstants.swap_io) {
+        imageStore(properties1_in,coord,properties1_o);
+    } else {
+        imageStore(properties1_out,coord,properties1_o);
+    }
+}
+
+void clear(ivec2 coord){
+    if (PushConstants.swap_io) {
+        imageStore(properties1_in,coord,uvec4(0,0,0,0));
+    } else {
+        imageStore(properties1_out,coord,uvec4(0,0,0,0));
+    }
+}
+
+uvec4 load_properties1(ivec2 coords){
+    if (PushConstants.swap_io) {
+        return imageLoad(properties1_out, coords);
+    } else {
+        return imageLoad(properties1_in, coords);
     }
 }

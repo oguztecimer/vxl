@@ -400,7 +400,13 @@ impl App {
             extent: self.renderer().swapchain.extent,
         };
 
+        let push_constants = &self.renderer().pipelines.simulation_pipeline.data;
+
         unsafe {
+            let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
+                push_constants as *const ComputePushConstants as *const u8,
+                size_of::<ComputePushConstants>(),
+            );
             let logical_device = &self.renderer().device.logical;
             let logical_device_dyn = &self.renderer().device.logical_dynamic_rendering;
             logical_device_dyn.cmd_begin_rendering(command_buffer, &rendering_info);
@@ -417,6 +423,16 @@ impl App {
                 0,
                 &descriptor_sets,
                 &[],
+            );
+            self.renderer().device.logical.cmd_push_constants(
+                command_buffer,
+                self.renderer()
+                    .pipelines
+                    .simulation_pipeline
+                    .pipeline_layout,
+                ShaderStageFlags::COMPUTE,
+                0,
+                push_constants_bytes,
             );
             logical_device.cmd_set_viewport(command_buffer, 0, &[viewport]);
             logical_device.cmd_set_scissor(command_buffer, 0, &[scissor]);

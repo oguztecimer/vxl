@@ -35,6 +35,7 @@ pub struct GraphicsPipeline {
     pub pipeline: Pipeline,
     pub pipeline_layout: PipelineLayout,
     pub shader_modules: Vec<ShaderModule>,
+    pub data: ComputePushConstants,
 }
 
 pub struct Pipelines {
@@ -43,7 +44,11 @@ pub struct Pipelines {
 }
 
 impl GraphicsPipeline {
-    pub fn new(logical_device: &Device, descriptors: &Descriptors) -> Self {
+    pub fn new(
+        logical_device: &Device,
+        descriptors: &Descriptors,
+        data: ComputePushConstants,
+    ) -> Self {
         let mut rendering_create_info = PipelineRenderingCreateInfo::default()
             .color_attachment_formats(&[Format::R16G16B16A16_SFLOAT]) //DEFERRED ICIN BIRDEN FAZLA KOY!
             .depth_attachment_format(Format::UNDEFINED);
@@ -144,6 +149,7 @@ impl GraphicsPipeline {
             pipeline,
             pipeline_layout,
             shader_modules,
+            data,
         }
     }
     pub fn cleanup(&self, logical_device: &Device) {
@@ -216,7 +222,11 @@ impl Pipelines {
             descriptors,
             ComputePushConstants { swap_io: false },
         );
-        let draw_pipeline = GraphicsPipeline::new(logical_device, descriptors);
+        let draw_pipeline = GraphicsPipeline::new(
+            logical_device,
+            descriptors,
+            ComputePushConstants { swap_io: false },
+        );
         Self {
             simulation_pipeline,
             draw_pipeline,

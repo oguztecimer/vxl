@@ -62,6 +62,21 @@ impl Descriptors {
             DescriptorType::COMBINED_IMAGE_SAMPLER,
             ShaderStageFlags::FRAGMENT,
         );
+        full_screen_descriptor_layout_builder.add_binding(
+            1,
+            DescriptorType::COMBINED_IMAGE_SAMPLER,
+            ShaderStageFlags::FRAGMENT,
+        );
+        full_screen_descriptor_layout_builder.add_binding(
+            2,
+            DescriptorType::COMBINED_IMAGE_SAMPLER,
+            ShaderStageFlags::FRAGMENT,
+        );
+        full_screen_descriptor_layout_builder.add_binding(
+            3,
+            DescriptorType::COMBINED_IMAGE_SAMPLER,
+            ShaderStageFlags::FRAGMENT,
+        );
         let compute_descriptor_layout = compute_descriptor_layout_builder
             .get_layout(logical_device, DescriptorSetLayoutCreateFlags::default());
         let compute_descriptor_set =
@@ -144,16 +159,49 @@ impl Descriptors {
     }
 
     fn update_full_screen(&self, logical_device: &Device, swapchain: &Swapchain) {
-        let image_infos = [DescriptorImageInfo::default()
+        let image_infos0 = [DescriptorImageInfo::default()
             .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-            .image_view(swapchain.compute_image.image_view)
+            .image_view(swapchain.properties1_in.image_view)
             .sampler(self.sampler)];
-        let draw_image_writes = [WriteDescriptorSet::default()
-            .dst_binding(0)
-            .dst_set(self.full_screen_descriptor_set)
-            .descriptor_count(1)
-            .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .image_info(&image_infos)];
+        let image_infos1 = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .image_view(swapchain.properties1_out.image_view)
+            .sampler(self.sampler)];
+        let image_infos2 = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .image_view(swapchain.properties2_in.image_view)
+            .sampler(self.sampler)];
+        let image_infos3 = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .image_view(swapchain.properties2_out.image_view)
+            .sampler(self.sampler)];
+
+        let draw_image_writes = [
+            WriteDescriptorSet::default()
+                .dst_binding(0)
+                .dst_set(self.full_screen_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .image_info(&image_infos0),
+            WriteDescriptorSet::default()
+                .dst_binding(1)
+                .dst_set(self.full_screen_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .image_info(&image_infos1),
+            WriteDescriptorSet::default()
+                .dst_binding(2)
+                .dst_set(self.full_screen_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .image_info(&image_infos2),
+            WriteDescriptorSet::default()
+                .dst_binding(3)
+                .dst_set(self.full_screen_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .image_info(&image_infos3),
+        ];
         unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
     }
 
