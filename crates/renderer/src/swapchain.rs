@@ -121,7 +121,8 @@ impl Swapchain {
             extent3d,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
-                | ImageUsageFlags::STORAGE,
+                | ImageUsageFlags::STORAGE
+                | ImageUsageFlags::SAMPLED,
             ImageAspectFlags::COLOR,
         );
         let properties1_out = AllocatedImage::new(
@@ -131,7 +132,8 @@ impl Swapchain {
             extent3d,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
-                | ImageUsageFlags::STORAGE,
+                | ImageUsageFlags::STORAGE
+                | ImageUsageFlags::SAMPLED,
             ImageAspectFlags::COLOR,
         );
         let properties2_in = AllocatedImage::new(
@@ -141,7 +143,8 @@ impl Swapchain {
             extent3d,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
-                | ImageUsageFlags::STORAGE,
+                | ImageUsageFlags::STORAGE
+                | ImageUsageFlags::SAMPLED,
             ImageAspectFlags::COLOR,
         );
 
@@ -152,7 +155,8 @@ impl Swapchain {
             extent3d,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
-                | ImageUsageFlags::STORAGE,
+                | ImageUsageFlags::STORAGE
+                | ImageUsageFlags::SAMPLED,
             ImageAspectFlags::COLOR,
         );
 

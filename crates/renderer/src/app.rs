@@ -186,6 +186,20 @@ impl App {
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
         );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.properties1_in.image,
+            ImageLayout::UNDEFINED,
+            ImageLayout::GENERAL,
+        );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.properties1_out.image,
+            ImageLayout::UNDEFINED,
+            ImageLayout::GENERAL,
+        );
 
         self.draw_background(command_buffer);
         self.draw_compute(command_buffer);
@@ -194,6 +208,21 @@ impl App {
             &self.renderer().device,
             command_buffer,
             self.renderer().swapchain.compute_image.image,
+            ImageLayout::GENERAL,
+            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        );
+
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.properties1_in.image,
+            ImageLayout::GENERAL,
+            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.properties1_out.image,
             ImageLayout::GENERAL,
             ImageLayout::SHADER_READ_ONLY_OPTIMAL,
         );

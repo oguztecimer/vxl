@@ -18,7 +18,7 @@ layout( push_constant ) uniform constants
 
 
 void main() {
-    float scale = 1.0;
+    float scale = 4.0;
     vec2 scaled_uv = uv/scale;
     properties1 = load_properties1(scaled_uv);
     if (properties1.r>0){
