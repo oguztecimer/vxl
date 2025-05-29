@@ -14,12 +14,11 @@ pub struct Swapchain {
     pub image_views: Vec<ImageView>,
     pub images: Vec<Image>,
     pub extent: Extent2D,
-    pub compute_image: AllocatedImage,
-    pub properties1_in: AllocatedImage,
-    pub properties1_out: AllocatedImage,
-    pub properties2_in: AllocatedImage,
-    pub properties2_out: AllocatedImage,
-    pub final_image: AllocatedImage,
+    pub simulation_properties1_in: AllocatedImage,
+    pub simulation_properties1_out: AllocatedImage,
+    pub simulation_properties2_in: AllocatedImage,
+    pub simulation_properties2_out: AllocatedImage,
+    pub render_image: AllocatedImage,
 }
 
 impl Swapchain {
@@ -98,15 +97,7 @@ impl Swapchain {
             height: surface_capabilities.current_extent.height,
             depth: 1,
         };
-        let compute_image = AllocatedImage::new(
-            device,
-            allocator,
-            Format::R16G16B16A16_SFLOAT,
-            extent3d,
-            ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED,
-            ImageAspectFlags::COLOR,
-        );
-        let final_image = AllocatedImage::new(
+        let render_image = AllocatedImage::new(
             device,
             allocator,
             Format::R16G16B16A16_SFLOAT,
@@ -114,7 +105,7 @@ impl Swapchain {
             ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::COLOR_ATTACHMENT,
             ImageAspectFlags::COLOR,
         );
-        let properties1_in = AllocatedImage::new(
+        let simulation_properties1_in = AllocatedImage::new(
             device,
             allocator,
             Format::R8G8B8A8_UINT,
@@ -125,7 +116,7 @@ impl Swapchain {
                 | ImageUsageFlags::SAMPLED,
             ImageAspectFlags::COLOR,
         );
-        let properties1_out = AllocatedImage::new(
+        let simulation_properties1_out = AllocatedImage::new(
             device,
             allocator,
             Format::R8G8B8A8_UINT,
@@ -136,7 +127,7 @@ impl Swapchain {
                 | ImageUsageFlags::SAMPLED,
             ImageAspectFlags::COLOR,
         );
-        let properties2_in = AllocatedImage::new(
+        let simulation_properties2_in = AllocatedImage::new(
             device,
             allocator,
             Format::R16G16B16A16_SFLOAT,
@@ -148,7 +139,7 @@ impl Swapchain {
             ImageAspectFlags::COLOR,
         );
 
-        let properties2_out = AllocatedImage::new(
+        let simulation_properties2_out = AllocatedImage::new(
             device,
             allocator,
             Format::R16G16B16A16_SFLOAT,
@@ -166,23 +157,25 @@ impl Swapchain {
             images,
             image_views,
             extent,
-            compute_image,
-            properties1_in,
-            properties1_out,
-            properties2_in,
-            properties2_out,
-            final_image,
+            simulation_properties1_in,
+            simulation_properties1_out,
+            simulation_properties2_in,
+            simulation_properties2_out,
+            render_image,
         }
     }
 
     pub fn cleanup(&mut self, logical_device: &ash::Device, allocator: &Allocator) {
         unsafe {
-            self.compute_image.cleanup(logical_device, allocator);
-            self.properties1_in.cleanup(logical_device, allocator);
-            self.properties1_out.cleanup(logical_device, allocator);
-            self.properties2_in.cleanup(logical_device, allocator);
-            self.properties2_out.cleanup(logical_device, allocator);
-            self.final_image.cleanup(logical_device, allocator);
+            self.simulation_properties1_in
+                .cleanup(logical_device, allocator);
+            self.simulation_properties1_out
+                .cleanup(logical_device, allocator);
+            self.simulation_properties2_in
+                .cleanup(logical_device, allocator);
+            self.simulation_properties2_out
+                .cleanup(logical_device, allocator);
+            self.render_image.cleanup(logical_device, allocator);
             for view in &self.image_views {
                 logical_device.destroy_image_view(*view, None)
             }

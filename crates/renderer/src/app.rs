@@ -1,16 +1,16 @@
 use crate::Renderer;
 use crate::images::{copy_image_to_image, transition_image_layout};
 use crate::imgui::{create_imgui_renderer, setup_imgui};
-use crate::pipelines::ComputePushConstants;
+use crate::pipelines::PushConstants;
 use ash::vk::{
-    AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearValue, CommandBuffer,
-    CommandBufferResetFlags, CommandBufferSubmitInfo, CommandPool, Fence, ImageAspectFlags,
-    ImageLayout, ImageSubresourceRange, ImageView, Offset2D, PipelineBindPoint,
-    PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo,
-    SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
+    AttachmentLoadOp, AttachmentStoreOp, ClearValue, CommandBuffer, CommandBufferResetFlags,
+    CommandBufferSubmitInfo, CommandPool, Fence, ImageLayout, ImageView, Offset2D,
+    PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo,
+    RenderingInfo, SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
 };
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
+use std::time::Instant;
 use winit::application::ApplicationHandler;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -25,6 +25,7 @@ pub struct App {
     pub imgui_platform: Option<WinitPlatform>,
     pub imgui_command_pool: Option<CommandPool>,
     pub close_requested: bool,
+    pub last_frame: Option<Instant>,
 }
 
 impl ApplicationHandler for App {
@@ -52,6 +53,7 @@ impl ApplicationHandler for App {
         self.imgui_platform = Some(imgui_platform);
         self.imgui_renderer = Some(imgui_renderer);
         self.imgui_command_pool = Some(imgui_command_pool);
+        self.last_frame = Some(Instant::now());
         self.window().request_redraw();
     }
 
@@ -135,6 +137,21 @@ impl App {
         if self.close_requested {
             return;
         }
+        let current_frame = Instant::now();
+        let delta_time = current_frame
+            .duration_since(self.last_frame.unwrap())
+            .as_secs_f32();
+        self.last_frame = Some(current_frame);
+        self.renderer_mut()
+            .pipelines
+            .simulation_pipeline
+            .data
+            .update(delta_time);
+        self.renderer_mut()
+            .pipelines
+            .render_pipeline
+            .data
+            .update(delta_time);
         let fences = [self.renderer().commands.get_current_frame().render_fence];
         unsafe {
             self.renderer()
@@ -182,32 +199,32 @@ impl App {
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.compute_image.image,
+            self.renderer().swapchain.simulation_properties1_in.image,
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
         );
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.properties1_in.image,
-            ImageLayout::UNDEFINED,
-            ImageLayout::GENERAL,
-        );
-        transition_image_layout(
-            &self.renderer().device,
-            command_buffer,
-            self.renderer().swapchain.properties1_out.image,
+            self.renderer().swapchain.simulation_properties1_out.image,
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
         );
 
-        self.draw_background(command_buffer);
-        self.draw_compute(command_buffer);
+        //self.draw_background(command_buffer);
+        self.run_simulation(command_buffer);
 
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.compute_image.image,
+            self.renderer().swapchain.simulation_properties1_in.image,
+            ImageLayout::GENERAL,
+            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.simulation_properties1_out.image,
             ImageLayout::GENERAL,
             ImageLayout::SHADER_READ_ONLY_OPTIMAL,
         );
@@ -215,32 +232,17 @@ impl App {
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.properties1_in.image,
-            ImageLayout::GENERAL,
-            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-        );
-        transition_image_layout(
-            &self.renderer().device,
-            command_buffer,
-            self.renderer().swapchain.properties1_out.image,
-            ImageLayout::GENERAL,
-            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-        );
-
-        transition_image_layout(
-            &self.renderer().device,
-            command_buffer,
-            self.renderer().swapchain.final_image.image,
+            self.renderer().swapchain.render_image.image,
             ImageLayout::UNDEFINED,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
         );
 
-        self.draw_geometry(command_buffer);
+        self.draw_screen(command_buffer);
 
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.final_image.image,
+            self.renderer().swapchain.render_image.image,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             ImageLayout::TRANSFER_SRC_OPTIMAL,
         );
@@ -254,7 +256,7 @@ impl App {
         copy_image_to_image(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.final_image.image,
+            self.renderer().swapchain.render_image.image,
             self.renderer().swapchain.images[image_index],
             self.renderer().swapchain.extent,
             self.renderer().swapchain.extent,
@@ -266,10 +268,6 @@ impl App {
             ImageLayout::TRANSFER_DST_OPTIMAL,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
         );
-        // self.draw_imgui(
-        //     command_buffer,
-        //     self.renderer().swapchain.image_views[image_index],
-        // );
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
@@ -336,33 +334,33 @@ impl App {
         }
     }
 
-    fn draw_background(&mut self, command_buffer: CommandBuffer) {
-        let clear_color = ClearColorValue {
-            float32: [0.0, 0.0, 0.0, 1.0],
-        };
-        let clear_range = ImageSubresourceRange::default()
-            .aspect_mask(ImageAspectFlags::COLOR)
-            .level_count(1)
-            .layer_count(1);
-        let clear_ranges = [clear_range];
-        unsafe {
-            self.renderer().device.logical.cmd_clear_color_image(
-                command_buffer,
-                self.renderer().swapchain.compute_image.image,
-                ImageLayout::GENERAL,
-                &clear_color,
-                &clear_ranges,
-            );
-        }
-    }
-    fn draw_compute(&mut self, command_buffer: CommandBuffer) {
+    // fn draw_background(&mut self, command_buffer: CommandBuffer) {
+    //     let clear_color = ClearColorValue {
+    //         float32: [0.0, 0.0, 0.0, 1.0],
+    //     };
+    //     let clear_range = ImageSubresourceRange::default()
+    //         .aspect_mask(ImageAspectFlags::COLOR)
+    //         .level_count(1)
+    //         .layer_count(1);
+    //     let clear_ranges = [clear_range];
+    //     unsafe {
+    //         self.renderer().device.logical.cmd_clear_color_image(
+    //             command_buffer,
+    //             self.renderer().swapchain.compute_image.image,
+    //             ImageLayout::GENERAL,
+    //             &clear_color,
+    //             &clear_ranges,
+    //         );
+    //     }
+    // }
+    fn run_simulation(&mut self, command_buffer: CommandBuffer) {
         unsafe {
             self.renderer().device.logical.cmd_bind_pipeline(
                 command_buffer,
                 PipelineBindPoint::COMPUTE,
                 self.renderer().pipelines.simulation_pipeline.pipeline,
             );
-            let descriptor_sets = [self.renderer().descriptors.compute_descriptor_set];
+            let descriptor_sets = [self.renderer().descriptors.simulation_descriptor_set];
             self.renderer().device.logical.cmd_bind_descriptor_sets(
                 command_buffer,
                 PipelineBindPoint::COMPUTE,
@@ -376,15 +374,9 @@ impl App {
             );
             let push_constants = &self.renderer().pipelines.simulation_pipeline.data;
             let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
-                push_constants as *const ComputePushConstants as *const u8,
-                size_of::<ComputePushConstants>(),
+                push_constants as *const PushConstants as *const u8,
+                size_of::<PushConstants>(),
             );
-            self.renderer_mut()
-                .pipelines
-                .simulation_pipeline
-                .data
-                .swap();
-
             self.renderer().device.logical.cmd_push_constants(
                 command_buffer,
                 self.renderer()
@@ -405,9 +397,9 @@ impl App {
         }
     }
 
-    fn draw_geometry(&mut self, command_buffer: CommandBuffer) {
+    fn draw_screen(&mut self, command_buffer: CommandBuffer) {
         let attachment_info = self.create_rendering_attachment_info(
-            self.renderer().swapchain.final_image.image_view,
+            self.renderer().swapchain.render_image.image_view,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             None,
         );
@@ -421,20 +413,18 @@ impl App {
             });
         let viewport = Viewport::default()
             .width(self.renderer().swapchain.extent.width as f32)
-            .height(self.renderer().swapchain.extent.height as f32)
-            .min_depth(0.0)
-            .max_depth(1.0);
+            .height(self.renderer().swapchain.extent.height as f32);
         let scissor = Rect2D {
             offset: Offset2D::default(),
             extent: self.renderer().swapchain.extent,
         };
 
-        let push_constants = &self.renderer().pipelines.simulation_pipeline.data;
+        let push_constants = &self.renderer().pipelines.render_pipeline.data;
 
         unsafe {
             let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
-                push_constants as *const ComputePushConstants as *const u8,
-                size_of::<ComputePushConstants>(),
+                push_constants as *const PushConstants as *const u8,
+                size_of::<PushConstants>(),
             );
             let logical_device = &self.renderer().device.logical;
             let logical_device_dyn = &self.renderer().device.logical_dynamic_rendering;
@@ -442,24 +432,21 @@ impl App {
             logical_device.cmd_bind_pipeline(
                 command_buffer,
                 PipelineBindPoint::GRAPHICS,
-                self.renderer().pipelines.draw_pipeline.pipeline,
+                self.renderer().pipelines.render_pipeline.pipeline,
             );
-            let descriptor_sets = [self.renderer().descriptors.full_screen_descriptor_set];
+            let descriptor_sets = [self.renderer().descriptors.render_descriptor_set];
             self.renderer().device.logical.cmd_bind_descriptor_sets(
                 command_buffer,
                 PipelineBindPoint::GRAPHICS,
-                self.renderer().pipelines.draw_pipeline.pipeline_layout,
+                self.renderer().pipelines.render_pipeline.pipeline_layout,
                 0,
                 &descriptor_sets,
                 &[],
             );
             self.renderer().device.logical.cmd_push_constants(
                 command_buffer,
-                self.renderer()
-                    .pipelines
-                    .simulation_pipeline
-                    .pipeline_layout,
-                ShaderStageFlags::COMPUTE,
+                self.renderer().pipelines.render_pipeline.pipeline_layout,
+                ShaderStageFlags::FRAGMENT,
                 0,
                 push_constants_bytes,
             );

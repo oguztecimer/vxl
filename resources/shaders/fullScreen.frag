@@ -13,12 +13,13 @@ uvec4 load_properties1(vec2 uv);
 
 layout( push_constant ) uniform constants
 {
-    bool swap_io;
+    uint swap_io;
+    float delta_time;
 } PushConstants;
 
 
 void main() {
-    float scale = 4.0;
+    float scale = 8.0;
     vec2 scaled_uv = uv/scale;
     properties1 = load_properties1(scaled_uv);
     if (properties1.r>0){
@@ -29,7 +30,7 @@ void main() {
 }
 
 uvec4 load_properties1(vec2 scaled_uv){
-    if (PushConstants.swap_io) {
+    if (PushConstants.swap_io == 0) {
         return texture(properties1_out, scaled_uv);
     } else {
         return texture(properties1_in, scaled_uv);

@@ -20,35 +20,32 @@ const FRAG: &[u32] = include_glsl!("../../resources/shaders/fullScreen.frag");
 
 #[repr(C)]
 #[derive(Default)]
-pub struct ComputePushConstants {
-    pub swap_io: bool,
+pub struct PushConstants {
+    pub swap_io: u32,
+    pub delta_time: f32,
 }
 
-pub struct ComputePipeline {
+pub struct SimulationPipeline {
     pub pipeline: Pipeline,
     pub pipeline_layout: PipelineLayout,
     pub shader_module: ShaderModule,
-    pub data: ComputePushConstants,
+    pub data: PushConstants,
 }
 
-pub struct GraphicsPipeline {
+pub struct RenderPipeline {
     pub pipeline: Pipeline,
     pub pipeline_layout: PipelineLayout,
     pub shader_modules: Vec<ShaderModule>,
-    pub data: ComputePushConstants,
+    pub data: PushConstants,
 }
 
 pub struct Pipelines {
-    pub simulation_pipeline: ComputePipeline,
-    pub draw_pipeline: GraphicsPipeline,
+    pub simulation_pipeline: SimulationPipeline,
+    pub render_pipeline: RenderPipeline,
 }
 
-impl GraphicsPipeline {
-    pub fn new(
-        logical_device: &Device,
-        descriptors: &Descriptors,
-        data: ComputePushConstants,
-    ) -> Self {
+impl RenderPipeline {
+    pub fn new(logical_device: &Device, descriptors: &Descriptors, data: PushConstants) -> Self {
         let mut rendering_create_info = PipelineRenderingCreateInfo::default()
             .color_attachment_formats(&[Format::R16G16B16A16_SFLOAT]) //DEFERRED ICIN BIRDEN FAZLA KOY!
             .depth_attachment_format(Format::UNDEFINED);
@@ -114,8 +111,14 @@ impl GraphicsPipeline {
         let depth_stencil_state_create_info =
             PipelineDepthStencilStateCreateInfo::default().depth_test_enable(false);
 
-        let layouts = [descriptors.full_screen_descriptor_layout];
-        let pipeline_layout_create_info = PipelineLayoutCreateInfo::default().set_layouts(&layouts);
+        let push_constant_ranges = [PushConstantRange::default()
+            .offset(0)
+            .size(size_of::<PushConstants>() as u32)
+            .stage_flags(ShaderStageFlags::FRAGMENT)];
+        let layouts = [descriptors.render_descriptor_layout];
+        let pipeline_layout_create_info = PipelineLayoutCreateInfo::default()
+            .set_layouts(&layouts)
+            .push_constant_ranges(&push_constant_ranges);
         let pipeline_layout =
             unsafe { logical_device.create_pipeline_layout(&pipeline_layout_create_info, None) }
                 .expect("Could not create pipeline layout");
@@ -163,16 +166,12 @@ impl GraphicsPipeline {
     }
 }
 
-impl ComputePipeline {
-    pub fn new(
-        logical_device: &Device,
-        descriptors: &Descriptors,
-        data: ComputePushConstants,
-    ) -> Self {
-        let layouts = [descriptors.compute_descriptor_layout];
+impl SimulationPipeline {
+    pub fn new(logical_device: &Device, descriptors: &Descriptors, data: PushConstants) -> Self {
+        let layouts = [descriptors.simulation_descriptor_layout];
         let push_constant_ranges = [PushConstantRange::default()
             .offset(0)
-            .size(size_of::<ComputePushConstants>() as u32)
+            .size(size_of::<PushConstants>() as u32)
             .stage_flags(ShaderStageFlags::COMPUTE)];
         let pipeline_layout_create_info = PipelineLayoutCreateInfo::default()
             .set_layouts(&layouts)
@@ -190,10 +189,10 @@ impl ComputePipeline {
             .stage(ShaderStageFlags::COMPUTE)
             .name(shader_stage_name)
             .module(shader_module);
-        let compute_pipeline_create_info = ComputePipelineCreateInfo::default()
+        let simulation_pipeline_create_info = ComputePipelineCreateInfo::default()
             .stage(shader_stage_create_info)
             .layout(pipeline_layout);
-        let create_infos = [compute_pipeline_create_info];
+        let create_infos = [simulation_pipeline_create_info];
         let pipeline = unsafe {
             logical_device.create_compute_pipelines(PipelineCache::null(), &create_infos, None)
         }
@@ -217,30 +216,37 @@ impl ComputePipeline {
 
 impl Pipelines {
     pub fn new(logical_device: &Device, descriptors: &Descriptors) -> Self {
-        let simulation_pipeline = ComputePipeline::new(
+        let simulation_pipeline = SimulationPipeline::new(
             logical_device,
             descriptors,
-            ComputePushConstants { swap_io: false },
+            PushConstants {
+                swap_io: 0,
+                delta_time: 0.0,
+            },
         );
-        let draw_pipeline = GraphicsPipeline::new(
+        let render_pipeline = RenderPipeline::new(
             logical_device,
             descriptors,
-            ComputePushConstants { swap_io: false },
+            PushConstants {
+                swap_io: 0,
+                delta_time: 0.0,
+            },
         );
         Self {
             simulation_pipeline,
-            draw_pipeline,
+            render_pipeline,
         }
     }
 
     pub fn cleanup(&self, logical_device: &Device) {
-        self.draw_pipeline.cleanup(logical_device);
+        self.render_pipeline.cleanup(logical_device);
         self.simulation_pipeline.cleanup(logical_device);
     }
 }
 
-impl ComputePushConstants {
-    pub fn swap(&mut self) {
-        self.swap_io = !self.swap_io;
+impl PushConstants {
+    pub fn update(&mut self, delta_time: f32) {
+        self.swap_io = if self.swap_io == 0 { 1 } else { 0 };
+        self.delta_time = delta_time;
     }
 }

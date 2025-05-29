@@ -2,29 +2,29 @@
 
 layout (local_size_x = 16, local_size_y = 16) in;
 
-layout(rgba16f,set = 0, binding = 0) uniform image2D image;
-
-layout(rgba16ui,set = 0, binding = 1) uniform uimage2D properties1_in;
-layout(rgba16ui,set = 0, binding = 2) uniform uimage2D properties1_out;
-
-layout(rgba16f,set = 0, binding = 3) uniform image2D properties2_in;
-layout(rgba16f,set = 0, binding = 4) uniform image2D properties2_out;
+layout(rgba16ui,set = 0, binding = 0) uniform uimage2D properties1_in;
+layout(rgba16ui,set = 0, binding = 1) uniform uimage2D properties1_out;
+layout(rgba16f,set = 0, binding = 2) uniform image2D properties2_in;
+layout(rgba16f,set = 0, binding = 3) uniform image2D properties2_out;
 
 layout( push_constant ) uniform constants
 {
-    bool swap_io;
+    uint swap_io;
+    float delta_time;
 } PushConstants;
 
 uvec4 properties1_i,properties1_o;
+vec4 properties2_i,properties2_o;
 void write(ivec2 coord);
 void clear(ivec2 coord);
 uvec4 load_properties1(ivec2 coord);
+vec4 load_properties2(ivec2 coord);
 
 void main()
 {
     ivec2 coords = ivec2(gl_GlobalInvocationID.xy);
     properties1_i = load_properties1(coords);
-
+    properties2_i = load_properties2(coords);
 
     if (coords.x == 100 && coords.y == 10) {
         properties1_o.r = 1;
@@ -34,6 +34,7 @@ void main()
     if (properties1_i.r == 1){
         ivec2 bottom = coords + ivec2(0,1);
         properties1_o = properties1_i;
+        properties2_o = properties1_i;
         if (bottom.y<100 && load_properties1(bottom).r == 0) {
             write(bottom);
             clear(coords);
@@ -44,25 +45,37 @@ void main()
 }
 
 void write(ivec2 coord){
-    if (PushConstants.swap_io) {
-        imageStore(properties1_in,coord,properties1_o);
-    } else {
+    if (PushConstants.swap_io == 0) {
         imageStore(properties1_out,coord,properties1_o);
+        imageStore(properties2_out,coord,properties2_o);
+    } else {
+        imageStore(properties1_in,coord,properties1_o);
+        imageStore(properties2_in,coord,properties2_o);
     }
 }
 
 void clear(ivec2 coord){
-    if (PushConstants.swap_io) {
-        imageStore(properties1_in,coord,uvec4(0,0,0,0));
-    } else {
+    if (PushConstants.swap_io == 0) {
         imageStore(properties1_out,coord,uvec4(0,0,0,0));
+        imageStore(properties2_out,coord,vec4(0.0,0.0,0.0,0.0));
+    } else {
+        imageStore(properties1_in,coord,uvec4(0,0,0,0));
+        imageStore(properties2_in,coord,vec4(0.0,0.0,0.0,0.0));
     }
 }
 
 uvec4 load_properties1(ivec2 coords){
-    if (PushConstants.swap_io) {
-        return imageLoad(properties1_out, coords);
-    } else {
+    if (PushConstants.swap_io == 0) {
         return imageLoad(properties1_in, coords);
+    } else {
+        return imageLoad(properties1_out, coords);
+    }
+}
+
+vec4 load_properties2(ivec2 coords){
+    if (PushConstants.swap_io == 0) {
+        return imageLoad(properties2_in, coords);
+    } else {
+        return imageLoad(properties2_out, coords);
     }
 }
