@@ -3,12 +3,13 @@ use crate::images::{copy_image_to_image, transition_image_layout};
 use crate::imgui::{create_imgui_renderer, setup_imgui};
 use crate::pipelines::PushConstants;
 use ash::vk::{
-    AttachmentLoadOp, AttachmentStoreOp, ClearValue, CommandBuffer, CommandBufferResetFlags,
-    CommandBufferSubmitInfo, CommandPool, Fence, ImageLayout, ImageView, Offset2D,
-    PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo,
-    RenderingInfo, SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
+    AccessFlags2, AttachmentLoadOp, AttachmentStoreOp, ClearValue, CommandBuffer,
+    CommandBufferResetFlags, CommandBufferSubmitInfo, CommandPool, DependencyInfo, Fence,
+    ImageLayout, ImageView, MemoryBarrier2, Offset2D, PipelineBindPoint, PipelineStageFlags2,
+    PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo, SemaphoreSubmitInfo,
+    ShaderStageFlags, SubmitInfo2, Viewport,
 };
-use glam::vec2;
+use glam::{IVec2, vec2};
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
 use std::time::Instant;
@@ -408,27 +409,49 @@ impl App {
                 &descriptor_sets,
                 &[],
             );
-            let push_constants = &self.renderer().pipelines.simulation_pipeline.data;
-            let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
-                push_constants as *const PushConstants as *const u8,
-                size_of::<PushConstants>(),
-            );
-            self.renderer().device.logical.cmd_push_constants(
-                command_buffer,
-                self.renderer()
-                    .pipelines
-                    .simulation_pipeline
-                    .pipeline_layout,
-                ShaderStageFlags::COMPUTE,
-                0,
-                push_constants_bytes,
-            );
-            self.renderer().device.logical.cmd_dispatch(
-                command_buffer,
-                32, //512/16
-                32,
-                1,
-            );
+            for batch in 0..4 {
+                if batch != 0 {
+                    let barrier = MemoryBarrier2::default()
+                        .src_access_mask(AccessFlags2::SHADER_STORAGE_WRITE)
+                        .dst_access_mask(AccessFlags2::SHADER_STORAGE_READ)
+                        .src_stage_mask(PipelineStageFlags2::COMPUTE_SHADER)
+                        .dst_stage_mask(PipelineStageFlags2::COMPUTE_SHADER);
+                    let barriers = [barrier];
+                    let dependency_info = DependencyInfo::default().memory_barriers(&barriers);
+                    self.renderer()
+                        .device
+                        .logical_sync2
+                        .cmd_pipeline_barrier2(command_buffer, &dependency_info);
+                }
+                let mut push_constants = self.renderer().pipelines.simulation_pipeline.data;
+                push_constants.batch_offset = match batch {
+                    0 => IVec2::new(0, 0),
+                    1 => IVec2::new(1, 0),
+                    2 => IVec2::new(0, 1),
+                    3 => IVec2::new(1, 1),
+                    _ => panic!("Batch count does not match"),
+                };
+                let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
+                    &push_constants as *const PushConstants as *const u8,
+                    size_of::<PushConstants>(),
+                );
+                self.renderer().device.logical.cmd_push_constants(
+                    command_buffer,
+                    self.renderer()
+                        .pipelines
+                        .simulation_pipeline
+                        .pipeline_layout,
+                    ShaderStageFlags::COMPUTE,
+                    0,
+                    push_constants_bytes,
+                );
+                self.renderer().device.logical.cmd_dispatch(
+                    command_buffer,
+                    32, // = 512 / (16)
+                    32,
+                    1,
+                );
+            }
         }
     }
 

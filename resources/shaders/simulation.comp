@@ -1,6 +1,6 @@
 #version 460
 
-layout(local_size_x = 16, local_size_y = 16) in;
+layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(rgba16ui,set = 0, binding = 0)   uniform uimage2D    properties1_in;
 layout(rgba16ui,set = 0, binding = 1)   uniform uimage2D    properties1_out;
@@ -11,6 +11,7 @@ layout( push_constant ) uniform constants
 {
     uint swap_io;
     float delta_time;
+    ivec2 batch_offset;
 } PushConstants;
 
 uvec4 properties1_i,properties1_o;
@@ -22,7 +23,8 @@ vec4 load_properties2(ivec2 coord);
 
 void main()
 {
-    ivec2 coords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 coords = ivec2(gl_GlobalInvocationID.xy) * 2 + PushConstants.batch_offset;
+    //ivec2 coords = ivec2(gl_GlobalInvocationID.xy);
     properties1_i = load_properties1(coords);
     properties1_o = properties1_i;
 

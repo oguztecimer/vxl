@@ -11,7 +11,7 @@ use ash::vk::{
     PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, PushConstantRange,
     ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags,
 };
-use glam::Vec2;
+use glam::{IVec2, Vec2};
 use std::ffi::CString;
 use vk_shader_macros::include_glsl;
 
@@ -20,12 +20,13 @@ const VERT: &[u32] = include_glsl!("../../resources/shaders/fullScreen.vert");
 const FRAG: &[u32] = include_glsl!("../../resources/shaders/fullScreen.frag");
 
 #[repr(C)]
-#[derive(Default)]
+#[derive(Default, Copy, Clone, Debug)]
 pub struct PushConstants {
     pub swap_io: u32,
     pub delta_time: f32,
     pub uv_min: Vec2,
     pub uv_max: Vec2,
+    pub batch_offset: IVec2,
 }
 
 pub struct SimulationPipeline {
@@ -227,6 +228,7 @@ impl Pipelines {
                 delta_time: 0.0,
                 uv_min: Vec2 { x: 0.0, y: 0.0 },
                 uv_max: Vec2 { x: 1.0, y: 1.0 },
+                batch_offset: IVec2::new(0, 0),
             },
         );
         let render_pipeline = RenderPipeline::new(
@@ -237,6 +239,7 @@ impl Pipelines {
                 delta_time: 0.0,
                 uv_min: Vec2 { x: 0.0, y: 0.0 },
                 uv_max: Vec2 { x: 1.0, y: 1.0 },
+                batch_offset: IVec2::new(0, 0),
             },
         );
         Self {
