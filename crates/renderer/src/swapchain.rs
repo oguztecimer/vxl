@@ -97,6 +97,11 @@ impl Swapchain {
             height: surface_capabilities.current_extent.height,
             depth: 1,
         };
+        let simulation_extent = Extent3D {
+            width: 512,
+            height: 512,
+            depth: 1,
+        };
         let render_image = AllocatedImage::new(
             device,
             allocator,
@@ -109,7 +114,7 @@ impl Swapchain {
             device,
             allocator,
             Format::R8G8B8A8_UINT,
-            extent3d,
+            simulation_extent,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
                 | ImageUsageFlags::STORAGE
@@ -120,7 +125,7 @@ impl Swapchain {
             device,
             allocator,
             Format::R8G8B8A8_UINT,
-            extent3d,
+            simulation_extent,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
                 | ImageUsageFlags::STORAGE
@@ -131,7 +136,7 @@ impl Swapchain {
             device,
             allocator,
             Format::R16G16B16A16_SFLOAT,
-            extent3d,
+            simulation_extent,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
                 | ImageUsageFlags::STORAGE
@@ -143,7 +148,7 @@ impl Swapchain {
             device,
             allocator,
             Format::R16G16B16A16_SFLOAT,
-            extent3d,
+            simulation_extent,
             ImageUsageFlags::TRANSFER_SRC
                 | ImageUsageFlags::TRANSFER_DST
                 | ImageUsageFlags::STORAGE

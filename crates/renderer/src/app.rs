@@ -8,6 +8,7 @@ use ash::vk::{
     PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo,
     RenderingInfo, SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
 };
+use glam::vec2;
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
 use std::time::Instant;
@@ -141,17 +142,24 @@ impl App {
         let delta_time = current_frame
             .duration_since(self.last_frame.unwrap())
             .as_secs_f32();
+        let scale = 8.0;
+        let source = scale * 512.0;
+        let uv_min = vec2(
+            1.0 - (self.renderer().swapchain.extent.width as f32 / source),
+            1.0 - (self.renderer().swapchain.extent.height as f32 / source),
+        ) / 2.0;
+        let uv_max = vec2(1.0, 1.0) - uv_min;
         self.last_frame = Some(current_frame);
         self.renderer_mut()
             .pipelines
             .simulation_pipeline
             .data
-            .update(delta_time);
+            .update(delta_time, uv_min, uv_max);
         self.renderer_mut()
             .pipelines
             .render_pipeline
             .data
-            .update(delta_time);
+            .update(delta_time, uv_min, uv_max);
         let fences = [self.renderer().commands.get_current_frame().render_fence];
         unsafe {
             self.renderer()
@@ -210,6 +218,20 @@ impl App {
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
         );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.simulation_properties2_in.image,
+            ImageLayout::UNDEFINED,
+            ImageLayout::GENERAL,
+        );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.simulation_properties2_out.image,
+            ImageLayout::UNDEFINED,
+            ImageLayout::GENERAL,
+        );
 
         //self.draw_background(command_buffer);
         self.run_simulation(command_buffer);
@@ -225,6 +247,20 @@ impl App {
             &self.renderer().device,
             command_buffer,
             self.renderer().swapchain.simulation_properties1_out.image,
+            ImageLayout::GENERAL,
+            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.simulation_properties2_in.image,
+            ImageLayout::GENERAL,
+            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
+            self.renderer().swapchain.simulation_properties2_out.image,
             ImageLayout::GENERAL,
             ImageLayout::SHADER_READ_ONLY_OPTIMAL,
         );
@@ -387,11 +423,10 @@ impl App {
                 0,
                 push_constants_bytes,
             );
-            let extent = self.renderer().swapchain.extent;
             self.renderer().device.logical.cmd_dispatch(
                 command_buffer,
-                extent.width / 16,
-                extent.height / 16,
+                32, //512/16
+                32,
                 1,
             );
         }

@@ -1,11 +1,11 @@
 #version 460
 
-layout (local_size_x = 16, local_size_y = 16) in;
+layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(rgba16ui,set = 0, binding = 0) uniform uimage2D properties1_in;
-layout(rgba16ui,set = 0, binding = 1) uniform uimage2D properties1_out;
-layout(rgba16f,set = 0, binding = 2) uniform image2D properties2_in;
-layout(rgba16f,set = 0, binding = 3) uniform image2D properties2_out;
+layout(rgba16ui,set = 0, binding = 0)   uniform uimage2D    properties1_in;
+layout(rgba16ui,set = 0, binding = 1)   uniform uimage2D    properties1_out;
+layout(rgba16f,set = 0, binding = 2)    uniform image2D     properties2_in;
+layout(rgba16f,set = 0, binding = 3)    uniform image2D     properties2_out;
 
 layout( push_constant ) uniform constants
 {
@@ -24,24 +24,37 @@ void main()
 {
     ivec2 coords = ivec2(gl_GlobalInvocationID.xy);
     properties1_i = load_properties1(coords);
-    properties2_i = load_properties2(coords);
+    properties1_o = properties1_i;
 
-    if (coords.x == 100 && coords.y == 10) {
+    //endless drop
+    if (coords.x == 256 && coords.y == 200) {
         properties1_o.r = 1;
         write(coords);
     }
 
-    if (properties1_i.r == 1){
-        ivec2 bottom = coords + ivec2(0,1);
-        properties1_o = properties1_i;
-        properties2_o = properties1_i;
-        if (bottom.y<100 && load_properties1(bottom).r == 0) {
-            write(bottom);
-            clear(coords);
-        }else{
-            write(coords);
+    if (properties1_i.r==0) return;
+    properties2_i = load_properties2(coords);
+    properties2_o = properties2_i;
+
+    properties2_o.g += PushConstants.delta_time * 10; //acceleration
+    properties2_o.b += properties2_o.g * PushConstants.delta_time;
+
+    int movement = 0;
+    while (properties2_o.b >= 1){
+        ivec2 next = coords + ivec2(0,movement+1);
+        if (next.y >300 || load_properties1(next).r > 0){
+            properties2_o.b = 0;
+            properties2_o.g = 0;
+            break;
         }
+        movement+=1;
+        properties2_o.b -= 1;
     }
+    if (movement>0){
+        clear(coords);
+    }
+    coords += ivec2(0,movement);
+    write(coords);
 }
 
 void write(ivec2 coord){

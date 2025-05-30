@@ -11,6 +11,7 @@ use ash::vk::{
     PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, PushConstantRange,
     ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags,
 };
+use glam::Vec2;
 use std::ffi::CString;
 use vk_shader_macros::include_glsl;
 
@@ -23,6 +24,8 @@ const FRAG: &[u32] = include_glsl!("../../resources/shaders/fullScreen.frag");
 pub struct PushConstants {
     pub swap_io: u32,
     pub delta_time: f32,
+    pub uv_min: Vec2,
+    pub uv_max: Vec2,
 }
 
 pub struct SimulationPipeline {
@@ -222,6 +225,8 @@ impl Pipelines {
             PushConstants {
                 swap_io: 0,
                 delta_time: 0.0,
+                uv_min: Vec2 { x: 0.0, y: 0.0 },
+                uv_max: Vec2 { x: 1.0, y: 1.0 },
             },
         );
         let render_pipeline = RenderPipeline::new(
@@ -230,6 +235,8 @@ impl Pipelines {
             PushConstants {
                 swap_io: 0,
                 delta_time: 0.0,
+                uv_min: Vec2 { x: 0.0, y: 0.0 },
+                uv_max: Vec2 { x: 1.0, y: 1.0 },
             },
         );
         Self {
@@ -245,8 +252,10 @@ impl Pipelines {
 }
 
 impl PushConstants {
-    pub fn update(&mut self, delta_time: f32) {
+    pub fn update(&mut self, delta_time: f32, uv_min: Vec2, uv_max: Vec2) {
         self.swap_io = if self.swap_io == 0 { 1 } else { 0 };
         self.delta_time = delta_time;
+        self.uv_min = uv_min;
+        self.uv_max = uv_max;
     }
 }
