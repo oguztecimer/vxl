@@ -11,6 +11,8 @@ layout( push_constant ) uniform constants
 {
     uint swap_io;
     float delta_time;
+    vec2 uv_min;
+    vec2 uv_max;
     ivec2 batch_offset;
 } PushConstants;
 
