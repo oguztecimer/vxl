@@ -208,28 +208,14 @@ impl App {
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.simulation_properties1_in.image,
+            self.renderer().swapchain.simulation_image1.image,
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
         );
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.simulation_properties1_out.image,
-            ImageLayout::UNDEFINED,
-            ImageLayout::GENERAL,
-        );
-        transition_image_layout(
-            &self.renderer().device,
-            command_buffer,
-            self.renderer().swapchain.simulation_properties2_in.image,
-            ImageLayout::UNDEFINED,
-            ImageLayout::GENERAL,
-        );
-        transition_image_layout(
-            &self.renderer().device,
-            command_buffer,
-            self.renderer().swapchain.simulation_properties2_out.image,
+            self.renderer().swapchain.simulation_image2.image,
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
         );
@@ -240,28 +226,14 @@ impl App {
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.simulation_properties1_in.image,
+            self.renderer().swapchain.simulation_image1.image,
             ImageLayout::GENERAL,
             ImageLayout::SHADER_READ_ONLY_OPTIMAL,
         );
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
-            self.renderer().swapchain.simulation_properties1_out.image,
-            ImageLayout::GENERAL,
-            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-        );
-        transition_image_layout(
-            &self.renderer().device,
-            command_buffer,
-            self.renderer().swapchain.simulation_properties2_in.image,
-            ImageLayout::GENERAL,
-            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-        );
-        transition_image_layout(
-            &self.renderer().device,
-            command_buffer,
-            self.renderer().swapchain.simulation_properties2_out.image,
+            self.renderer().swapchain.simulation_image2.image,
             ImageLayout::GENERAL,
             ImageLayout::SHADER_READ_ONLY_OPTIMAL,
         );
@@ -390,6 +362,7 @@ impl App {
     //         );
     //     }
     // }
+
     fn run_simulation(&mut self, command_buffer: CommandBuffer) {
         unsafe {
             self.renderer().device.logical.cmd_bind_pipeline(

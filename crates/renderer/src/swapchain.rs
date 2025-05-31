@@ -14,10 +14,8 @@ pub struct Swapchain {
     pub image_views: Vec<ImageView>,
     pub images: Vec<Image>,
     pub extent: Extent2D,
-    pub simulation_properties1_in: AllocatedImage,
-    pub simulation_properties1_out: AllocatedImage,
-    pub simulation_properties2_in: AllocatedImage,
-    pub simulation_properties2_out: AllocatedImage,
+    pub simulation_image1: AllocatedImage,
+    pub simulation_image2: AllocatedImage,
     pub render_image: AllocatedImage,
 }
 
@@ -110,7 +108,7 @@ impl Swapchain {
             ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::COLOR_ATTACHMENT,
             ImageAspectFlags::COLOR,
         );
-        let simulation_properties1_in = AllocatedImage::new(
+        let simulation_image1 = AllocatedImage::new(
             device,
             allocator,
             Format::R8G8B8A8_UINT,
@@ -121,30 +119,7 @@ impl Swapchain {
                 | ImageUsageFlags::SAMPLED,
             ImageAspectFlags::COLOR,
         );
-        let simulation_properties1_out = AllocatedImage::new(
-            device,
-            allocator,
-            Format::R8G8B8A8_UINT,
-            simulation_extent,
-            ImageUsageFlags::TRANSFER_SRC
-                | ImageUsageFlags::TRANSFER_DST
-                | ImageUsageFlags::STORAGE
-                | ImageUsageFlags::SAMPLED,
-            ImageAspectFlags::COLOR,
-        );
-        let simulation_properties2_in = AllocatedImage::new(
-            device,
-            allocator,
-            Format::R16G16B16A16_SFLOAT,
-            simulation_extent,
-            ImageUsageFlags::TRANSFER_SRC
-                | ImageUsageFlags::TRANSFER_DST
-                | ImageUsageFlags::STORAGE
-                | ImageUsageFlags::SAMPLED,
-            ImageAspectFlags::COLOR,
-        );
-
-        let simulation_properties2_out = AllocatedImage::new(
+        let simulation_image2 = AllocatedImage::new(
             device,
             allocator,
             Format::R16G16B16A16_SFLOAT,
@@ -162,24 +137,16 @@ impl Swapchain {
             images,
             image_views,
             extent,
-            simulation_properties1_in,
-            simulation_properties1_out,
-            simulation_properties2_in,
-            simulation_properties2_out,
+            simulation_image1,
+            simulation_image2,
             render_image,
         }
     }
 
     pub fn cleanup(&mut self, logical_device: &ash::Device, allocator: &Allocator) {
         unsafe {
-            self.simulation_properties1_in
-                .cleanup(logical_device, allocator);
-            self.simulation_properties1_out
-                .cleanup(logical_device, allocator);
-            self.simulation_properties2_in
-                .cleanup(logical_device, allocator);
-            self.simulation_properties2_out
-                .cleanup(logical_device, allocator);
+            self.simulation_image1.cleanup(logical_device, allocator);
+            self.simulation_image2.cleanup(logical_device, allocator);
             self.render_image.cleanup(logical_device, allocator);
             for view in &self.image_views {
                 logical_device.destroy_image_view(*view, None)

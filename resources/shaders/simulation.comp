@@ -2,10 +2,8 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(rgba16ui,set = 0, binding = 0)   uniform uimage2D    properties1_in;
-layout(rgba16ui,set = 0, binding = 1)   uniform uimage2D    properties1_out;
-layout(rgba16f,set = 0, binding = 2)    uniform image2D     properties2_in;
-layout(rgba16f,set = 0, binding = 3)    uniform image2D     properties2_out;
+layout(rgba16ui,set = 0, binding = 0)   uniform uimage2D    image1;
+layout(rgba16f,set = 0, binding = 1)    uniform image2D     image2;
 
 layout( push_constant ) uniform constants
 {
@@ -16,83 +14,59 @@ layout( push_constant ) uniform constants
     ivec2 batch_offset;
 } PushConstants;
 
-uvec4 properties1_i,properties1_o;
-vec4 properties2_i,properties2_o;
-void write(ivec2 coord);
+void write1(ivec2 coord, uvec4 data);
+void write2(ivec2 coord, vec4 data);
 void clear(ivec2 coord);
-uvec4 load_properties1(ivec2 coord);
-vec4 load_properties2(ivec2 coord);
 
 void main()
 {
+    uvec4 properties1;
+    vec4 properties2;
+
     ivec2 coords = ivec2(gl_GlobalInvocationID.xy) * 2 + PushConstants.batch_offset;
-    //ivec2 coords = ivec2(gl_GlobalInvocationID.xy);
-    properties1_i = load_properties1(coords);
-    properties1_o = properties1_i;
+    properties1 = imageLoad(image1, coords);
 
     //endless drop
     if (coords.x == 256 && coords.y == 200) {
-        properties1_o.r = 1;
-        write(coords);
+        properties1.r = 1;
     }
 
-    if (properties1_i.r==0) return;
-    properties2_i = load_properties2(coords);
-    properties2_o = properties2_i;
+    if (properties1.r==0) return;
+    properties2 = imageLoad(image2, coords);
 
-    properties2_o.g += PushConstants.delta_time * 100; //acceleration
-    properties2_o.b += properties2_o.g * PushConstants.delta_time;
+    properties2.g += PushConstants.delta_time*10; //acceleration
+    properties2.b += properties2.g * PushConstants.delta_time;
 
     int movement = 0;
-    while (properties2_o.b >= 1){
-        ivec2 next = coords + ivec2(0,movement+1);
-        if (next.y >300 || load_properties1(next).r > 0){
-            properties2_o.b = 0;
-            properties2_o.g = 0;
+    while (properties2.b >= 1){
+        ivec2 next_coords = coords + ivec2(0,movement+1);
+        uvec4 next_properties = imageLoad(image1, next_coords);
+        if (next_coords.y >300 || next_properties.r > 0){
+            properties2.b = 0;
+            properties2.g = 0;
             break;
         }
         movement+=1;
-        properties2_o.b -= 1;
+        properties2.b -= 1;
     }
     if (movement>0){
-        clear(coords);
+        write1(coords,properties1);
+        write2(coords,properties2);
     }
     coords += ivec2(0,movement);
-    write(coords);
+    write1(coords,properties1);
+    write2(coords,properties2);
 }
 
-void write(ivec2 coord){
-    if (PushConstants.swap_io == 0) {
-        imageStore(properties1_out,coord,properties1_o);
-        imageStore(properties2_out,coord,properties2_o);
-    } else {
-        imageStore(properties1_in,coord,properties1_o);
-        imageStore(properties2_in,coord,properties2_o);
-    }
+void write1(ivec2 coord,uvec4 data){
+    imageStore(image1,coord,data);
+}
+
+void write2(ivec2 coord,vec4 data){
+    imageStore(image2,coord,data);
 }
 
 void clear(ivec2 coord){
-    if (PushConstants.swap_io == 0) {
-        imageStore(properties1_out,coord,uvec4(0,0,0,0));
-        imageStore(properties2_out,coord,vec4(0.0,0.0,0.0,0.0));
-    } else {
-        imageStore(properties1_in,coord,uvec4(0,0,0,0));
-        imageStore(properties2_in,coord,vec4(0.0,0.0,0.0,0.0));
-    }
-}
-
-uvec4 load_properties1(ivec2 coords){
-    if (PushConstants.swap_io == 0) {
-        return imageLoad(properties1_in, coords);
-    } else {
-        return imageLoad(properties1_out, coords);
-    }
-}
-
-vec4 load_properties2(ivec2 coords){
-    if (PushConstants.swap_io == 0) {
-        return imageLoad(properties2_in, coords);
-    } else {
-        return imageLoad(properties2_out, coords);
-    }
+    write1(coord,uvec4(0,0,0,0));
+    write2(coord,vec4(0.0,0.0,0.0,0.0));
 }
