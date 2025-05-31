@@ -40,7 +40,7 @@ void main()
     properties2_i = load_properties2(coords);
     properties2_o = properties2_i;
 
-    properties2_o.g += PushConstants.delta_time * 10; //acceleration
+    properties2_o.g += PushConstants.delta_time * 100; //acceleration
     properties2_o.b += properties2_o.g * PushConstants.delta_time;
 
     int movement = 0;

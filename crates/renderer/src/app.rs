@@ -36,7 +36,7 @@ impl ApplicationHandler for App {
             .create_window(
                 WindowAttributes::default()
                     .with_title("vxl")
-                    .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0)),
+                    .with_inner_size(winit::dpi::LogicalSize::new(1200.0, 900.0)),
             )
             .unwrap();
 
@@ -143,7 +143,7 @@ impl App {
         let delta_time = current_frame
             .duration_since(self.last_frame.unwrap())
             .as_secs_f32();
-        let scale = 8.0;
+        let scale = 6.0;
         let source = scale * 512.0;
         let uv_min = vec2(
             1.0 - (self.renderer().swapchain.extent.width as f32 / source),
@@ -410,6 +410,7 @@ impl App {
                 &[],
             );
             for batch in 0..4 {
+                // can be increased to increase max movement per frame
                 if batch != 0 {
                     let barrier = MemoryBarrier2::default()
                         .src_access_mask(AccessFlags2::SHADER_STORAGE_WRITE)
@@ -425,11 +426,10 @@ impl App {
                 }
                 let mut push_constants = self.renderer().pipelines.simulation_pipeline.data;
                 push_constants.batch_offset = match batch {
-                    0 => IVec2::new(0, 0),
                     1 => IVec2::new(1, 0),
                     2 => IVec2::new(0, 1),
                     3 => IVec2::new(1, 1),
-                    _ => panic!("Batch count does not match"),
+                    _ => IVec2::new(0, 0),
                 };
                 let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
                     &push_constants as *const PushConstants as *const u8,
