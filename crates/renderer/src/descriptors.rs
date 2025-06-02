@@ -13,6 +13,8 @@ pub struct Descriptors {
     pub simulation_descriptor_set: DescriptorSet,
     pub render_descriptor_layout: DescriptorSetLayout,
     pub render_descriptor_set: DescriptorSet,
+    pub map_editor_descriptor_layout: DescriptorSetLayout,
+    pub map_editor_descriptor_set: DescriptorSet,
     pub sampler: Sampler,
 }
 
@@ -28,6 +30,13 @@ impl Descriptors {
         ];
         let global_descriptor_allocator =
             DescriptorAllocator::new(logical_device, 20, Vec::from(sizes));
+
+        let mut map_editor_descriptor_layout_builder = DescriptorLayoutBuilder::new();
+        map_editor_descriptor_layout_builder.add_binding(
+            0,
+            DescriptorType::STORAGE_IMAGE,
+            ShaderStageFlags::COMPUTE,
+        );
 
         let mut simulation_descriptor_layout_builder = DescriptorLayoutBuilder::new();
         simulation_descriptor_layout_builder.add_binding(
@@ -52,7 +61,10 @@ impl Descriptors {
             DescriptorType::COMBINED_IMAGE_SAMPLER,
             ShaderStageFlags::FRAGMENT,
         );
-
+        let map_editor_descriptor_layout = map_editor_descriptor_layout_builder
+            .get_layout(logical_device, DescriptorSetLayoutCreateFlags::default());
+        let map_editor_descriptor_set =
+            global_descriptor_allocator.allocate(logical_device, map_editor_descriptor_layout);
         let simulation_descriptor_layout = simulation_descriptor_layout_builder
             .get_layout(logical_device, DescriptorSetLayoutCreateFlags::default());
         let simulation_descriptor_set =
@@ -72,10 +84,25 @@ impl Descriptors {
             simulation_descriptor_set,
             render_descriptor_layout,
             render_descriptor_set,
+            map_editor_descriptor_layout,
+            map_editor_descriptor_set,
             sampler,
         };
         result.update(logical_device, swapchain);
         result
+    }
+
+    fn update_map_editor(&self, logical_device: &Device, swapchain: &Swapchain) {
+        let image_infos_0 = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::GENERAL)
+            .image_view(swapchain.simulation_image1.image_view)];
+        let draw_image_writes = [WriteDescriptorSet::default()
+            .dst_binding(0)
+            .dst_set(self.map_editor_descriptor_set)
+            .descriptor_count(1)
+            .descriptor_type(DescriptorType::STORAGE_IMAGE)
+            .image_info(&image_infos_0)];
+        unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
     }
 
     fn update_simulation(&self, logical_device: &Device, swapchain: &Swapchain) {
@@ -132,12 +159,14 @@ impl Descriptors {
     }
 
     pub fn update(&self, logical_device: &Device, swapchain: &Swapchain) {
+        self.update_map_editor(logical_device, swapchain);
         self.update_simulation(logical_device, swapchain);
         self.update_render(logical_device, swapchain);
     }
 
     pub fn cleanup(&self, logical_device: &Device) {
         unsafe {
+            logical_device.destroy_descriptor_set_layout(self.map_editor_descriptor_layout, None);
             logical_device.destroy_descriptor_set_layout(self.simulation_descriptor_layout, None);
             logical_device.destroy_descriptor_set_layout(self.render_descriptor_layout, None);
             logical_device.destroy_sampler(self.sampler, None);

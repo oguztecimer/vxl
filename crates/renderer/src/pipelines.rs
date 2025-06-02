@@ -15,6 +15,7 @@ use glam::{IVec2, Vec2};
 use std::ffi::CString;
 use vk_shader_macros::include_glsl;
 
+const MAPEDIT: &[u32] = include_glsl!("../../resources/shaders/mapEditor.comp");
 const SIM: &[u32] = include_glsl!("../../resources/shaders/simulation.comp");
 const VERT: &[u32] = include_glsl!("../../resources/shaders/fullScreen.vert");
 const FRAG: &[u32] = include_glsl!("../../resources/shaders/fullScreen.frag");
@@ -22,11 +23,25 @@ const FRAG: &[u32] = include_glsl!("../../resources/shaders/fullScreen.frag");
 #[repr(C)]
 #[derive(Default, Copy, Clone, Debug)]
 pub struct PushConstants {
-    pub swap_io: u32,
+    pub swap_io: u8,
     pub delta_time: f32,
     pub uv_min: Vec2,
     pub uv_max: Vec2,
     pub batch_offset: IVec2,
+}
+
+#[repr(C)]
+#[derive(Default, Copy, Clone, Debug)]
+pub struct MapEditorPushConstants {
+    pub coordinate: IVec2,
+    pub material: u32,
+}
+
+pub struct MapEditorPipeline {
+    pub pipeline: Pipeline,
+    pub pipeline_layout: PipelineLayout,
+    pub shader_module: ShaderModule,
+    pub data: MapEditorPushConstants,
 }
 
 pub struct SimulationPipeline {
@@ -46,6 +61,7 @@ pub struct RenderPipeline {
 pub struct Pipelines {
     pub simulation_pipeline: SimulationPipeline,
     pub render_pipeline: RenderPipeline,
+    pub map_editor_pipeline: MapEditorPipeline,
 }
 
 impl RenderPipeline {
@@ -218,6 +234,58 @@ impl SimulationPipeline {
     }
 }
 
+impl MapEditorPipeline {
+    pub fn new(
+        logical_device: &Device,
+        descriptors: &Descriptors,
+        data: MapEditorPushConstants,
+    ) -> Self {
+        let layouts = [descriptors.map_editor_descriptor_layout];
+        let push_constant_ranges = [PushConstantRange::default()
+            .offset(0)
+            .size(size_of::<MapEditorPushConstants>() as u32)
+            .stage_flags(ShaderStageFlags::COMPUTE)];
+        let pipeline_layout_create_info = PipelineLayoutCreateInfo::default()
+            .set_layouts(&layouts)
+            .push_constant_ranges(&push_constant_ranges);
+        let pipeline_layout =
+            unsafe { logical_device.create_pipeline_layout(&pipeline_layout_create_info, None) }
+                .expect("Could not create pipeline layout");
+        let shader_module_create_info = ShaderModuleCreateInfo::default().code(MAPEDIT);
+        let shader_module =
+            unsafe { logical_device.create_shader_module(&shader_module_create_info, None) }
+                .expect("Could not create shader module");
+        let shader_stage_name = CString::new("main").expect("Could not create CString");
+        let shader_stage_name = shader_stage_name.as_c_str();
+        let shader_stage_create_info = PipelineShaderStageCreateInfo::default()
+            .stage(ShaderStageFlags::COMPUTE)
+            .name(shader_stage_name)
+            .module(shader_module);
+        let pipeline_create_info = ComputePipelineCreateInfo::default()
+            .stage(shader_stage_create_info)
+            .layout(pipeline_layout);
+        let create_infos = [pipeline_create_info];
+        let pipeline = unsafe {
+            logical_device.create_compute_pipelines(PipelineCache::null(), &create_infos, None)
+        }
+        .expect("Could not create compute pipelines")[0];
+        Self {
+            pipeline,
+            pipeline_layout,
+            shader_module,
+            data,
+        }
+    }
+
+    pub fn cleanup(&self, logical_device: &Device) {
+        unsafe {
+            logical_device.destroy_pipeline(self.pipeline, None);
+            logical_device.destroy_pipeline_layout(self.pipeline_layout, None);
+            logical_device.destroy_shader_module(self.shader_module, None);
+        }
+    }
+}
+
 impl Pipelines {
     pub fn new(logical_device: &Device, descriptors: &Descriptors) -> Self {
         let simulation_pipeline = SimulationPipeline::new(
@@ -242,15 +310,25 @@ impl Pipelines {
                 batch_offset: IVec2::new(0, 0),
             },
         );
+        let map_editor_pipeline = MapEditorPipeline::new(
+            logical_device,
+            descriptors,
+            MapEditorPushConstants {
+                coordinate: IVec2::default(),
+                material: 0,
+            },
+        );
         Self {
             simulation_pipeline,
             render_pipeline,
+            map_editor_pipeline,
         }
     }
 
     pub fn cleanup(&self, logical_device: &Device) {
         self.render_pipeline.cleanup(logical_device);
         self.simulation_pipeline.cleanup(logical_device);
+        self.map_editor_pipeline.cleanup(logical_device);
     }
 }
 
@@ -260,5 +338,12 @@ impl PushConstants {
         self.delta_time = delta_time;
         self.uv_min = uv_min;
         self.uv_max = uv_max;
+    }
+}
+
+impl MapEditorPushConstants {
+    pub fn update(&mut self, coordinate: IVec2, material: u32) {
+        self.coordinate = coordinate;
+        self.material = material;
     }
 }

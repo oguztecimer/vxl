@@ -1,7 +1,7 @@
 use crate::Renderer;
 use crate::images::{copy_image_to_image, transition_image_layout};
 use crate::imgui::{create_imgui_renderer, setup_imgui};
-use crate::pipelines::PushConstants;
+use crate::pipelines::{MapEditorPushConstants, PushConstants};
 use ash::vk::{
     AccessFlags2, AttachmentLoadOp, AttachmentStoreOp, ClearValue, CommandBuffer,
     CommandBufferResetFlags, CommandBufferSubmitInfo, CommandPool, DependencyInfo, Fence,
@@ -9,12 +9,13 @@ use ash::vk::{
     PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo, SemaphoreSubmitInfo,
     ShaderStageFlags, SubmitInfo2, Viewport,
 };
-use glam::{IVec2, vec2};
+use glam::{IVec2, vec2, Vec2};
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
 use std::time::Instant;
 use winit::application::ApplicationHandler;
-use winit::event::{Event, WindowEvent};
+use winit::dpi::LogicalPosition;
+use winit::event::{ElementState, Event, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -28,6 +29,8 @@ pub struct App {
     pub imgui_command_pool: Option<CommandPool>,
     pub close_requested: bool,
     pub last_frame: Option<Instant>,
+    pub mouse_pressed: bool,
+    pub mouse_pos: IVec2,
 }
 
 impl ApplicationHandler for App {
@@ -117,6 +120,17 @@ impl ApplicationHandler for App {
             }
             WindowEvent::Resized(_) => {
                 self.recreate_swap_chain();
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                let mut mouse_pressed = false;
+                if button == MouseButton::Left && state == ElementState::Pressed{
+                    mouse_pressed = true;
+                }
+                self.mouse_pressed = mouse_pressed;
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let pos:LogicalPosition<i32> = position.to_logical(6.0);
+                self.mouse_pos = IVec2::new(pos.x, pos.y);
             }
 
             _ => (),
@@ -221,6 +235,9 @@ impl App {
         );
 
         //self.draw_background(command_buffer);
+        if self.mouse_pressed {
+            self.run_map_editor(command_buffer,uv_min);
+        }
         self.run_simulation(command_buffer);
 
         transition_image_layout(
@@ -362,6 +379,49 @@ impl App {
     //         );
     //     }
     // }
+
+    fn run_map_editor(&mut self, command_buffer: CommandBuffer, uv_min: Vec2) {
+        unsafe {
+            self.renderer().device.logical.cmd_bind_pipeline(
+                command_buffer,
+                PipelineBindPoint::COMPUTE,
+                self.renderer().pipelines.map_editor_pipeline.pipeline,
+            );
+            let descriptor_sets = [self.renderer().descriptors.map_editor_descriptor_set];
+            self.renderer().device.logical.cmd_bind_descriptor_sets(
+                command_buffer,
+                PipelineBindPoint::COMPUTE,
+                self.renderer()
+                    .pipelines
+                    .map_editor_pipeline
+                    .pipeline_layout,
+                0,
+                &descriptor_sets,
+                &[],
+            );
+
+            let mut push_constants = self.renderer().pipelines.map_editor_pipeline.data;
+            push_constants.update(self.mouse_pos + IVec2::new((uv_min.x * 512.0) as i32,(uv_min.y * 512.0) as i32), 1);
+            let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
+                &push_constants as *const MapEditorPushConstants as *const u8,
+                size_of::<MapEditorPushConstants>(),
+            );
+            self.renderer().device.logical.cmd_push_constants(
+                command_buffer,
+                self.renderer()
+                    .pipelines
+                    .map_editor_pipeline
+                    .pipeline_layout,
+                ShaderStageFlags::COMPUTE,
+                0,
+                push_constants_bytes,
+            );
+            self.renderer()
+                .device
+                .logical
+                .cmd_dispatch(command_buffer, 1, 1, 1);
+        }
+    }
 
     fn run_simulation(&mut self, command_buffer: CommandBuffer) {
         unsafe {

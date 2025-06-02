@@ -25,23 +25,16 @@ void main()
 
     ivec2 coords = ivec2(gl_GlobalInvocationID.xy) * 2 + PushConstants.batch_offset;
     properties1 = imageLoad(image1, coords);
-
-    //endless drop
-    if (coords.x == 256 && coords.y == 200) {
-        properties1.r = 1;
-    }
-
     if (properties1.r==0) return;
     properties2 = imageLoad(image2, coords);
-
-    properties2.g += PushConstants.delta_time*10; //acceleration
+    properties2.g += PushConstants.delta_time*20; //acceleration
     properties2.b += properties2.g * PushConstants.delta_time;
 
     int movement = 0;
     while (properties2.b >= 1){
         ivec2 next_coords = coords + ivec2(0,movement+1);
         uvec4 next_properties = imageLoad(image1, next_coords);
-        if (next_coords.y >300 || next_properties.r > 0){
+        if (next_coords.y >383 || next_properties.r > 0){
             properties2.b = 0;
             properties2.g = 0;
             break;
@@ -50,7 +43,8 @@ void main()
         properties2.b -= 1;
     }
     if (movement>0){
-        write1(coords,properties1);
+        clear(coords);
+    }else{
         write2(coords,properties2);
     }
     coords += ivec2(0,movement);
