@@ -9,7 +9,7 @@ use ash::vk::{
     PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo, SemaphoreSubmitInfo,
     ShaderStageFlags, SubmitInfo2, Viewport,
 };
-use glam::{IVec2, vec2, Vec2};
+use glam::{IVec2, Vec2, vec2};
 use imgui::Context;
 use imgui_winit_support::WinitPlatform;
 use std::time::Instant;
@@ -123,13 +123,16 @@ impl ApplicationHandler for App {
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let mut mouse_pressed = false;
-                if button == MouseButton::Left && state == ElementState::Pressed{
+                if button == MouseButton::Left
+                    && state == ElementState::Pressed
+                    && !self.imgui_context.as_ref().unwrap().io().want_capture_mouse
+                {
                     mouse_pressed = true;
                 }
                 self.mouse_pressed = mouse_pressed;
             }
             WindowEvent::CursorMoved { position, .. } => {
-                let pos:LogicalPosition<i32> = position.to_logical(6.0);
+                let pos: LogicalPosition<i32> = position.to_logical(6.0);
                 self.mouse_pos = IVec2::new(pos.x, pos.y);
             }
 
@@ -236,7 +239,7 @@ impl App {
 
         //self.draw_background(command_buffer);
         if self.mouse_pressed {
-            self.run_map_editor(command_buffer,uv_min);
+            self.run_map_editor(command_buffer, uv_min);
         }
         self.run_simulation(command_buffer);
 
@@ -293,6 +296,10 @@ impl App {
             self.renderer().swapchain.images[image_index],
             ImageLayout::TRANSFER_DST_OPTIMAL,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+        );
+        self.draw_imgui(
+            command_buffer,
+            self.renderer().swapchain.image_views[image_index],
         );
         transition_image_layout(
             &self.renderer().device,
@@ -401,7 +408,10 @@ impl App {
             );
 
             let mut push_constants = self.renderer().pipelines.map_editor_pipeline.data;
-            push_constants.update(self.mouse_pos + IVec2::new((uv_min.x * 512.0) as i32,(uv_min.y * 512.0) as i32), 1);
+            push_constants.update(
+                self.mouse_pos + IVec2::new((uv_min.x * 512.0) as i32, (uv_min.y * 512.0) as i32),
+                1,
+            );
             let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
                 &push_constants as *const MapEditorPushConstants as *const u8,
                 size_of::<MapEditorPushConstants>(),
@@ -442,7 +452,7 @@ impl App {
                 &descriptor_sets,
                 &[],
             );
-            for batch in 0..4 {
+            for batch in 0..9 {
                 // can be increased to increase max movement per frame
                 if batch != 0 {
                     let barrier = MemoryBarrier2::default()
@@ -460,8 +470,13 @@ impl App {
                 let mut push_constants = self.renderer().pipelines.simulation_pipeline.data;
                 push_constants.batch_offset = match batch {
                     1 => IVec2::new(1, 0),
-                    2 => IVec2::new(0, 1),
-                    3 => IVec2::new(1, 1),
+                    2 => IVec2::new(2, 0),
+                    3 => IVec2::new(0, 1),
+                    4 => IVec2::new(1, 1),
+                    5 => IVec2::new(2, 1),
+                    6 => IVec2::new(0, 2),
+                    7 => IVec2::new(1, 2),
+                    8 => IVec2::new(2, 2),
                     _ => IVec2::new(0, 0),
                 };
                 let push_constants_bytes: &[u8] = std::slice::from_raw_parts(
@@ -480,8 +495,8 @@ impl App {
                 );
                 self.renderer().device.logical.cmd_dispatch(
                     command_buffer,
-                    32, // = 512 / (16)
-                    32,
+                    22, // = 512 / (16)
+                    22,
                     1,
                 );
             }
@@ -549,7 +564,7 @@ impl App {
         }
     }
 
-    fn _draw_imgui(&mut self, command_buffer: CommandBuffer, target_image_view: ImageView) {
+    fn draw_imgui(&mut self, command_buffer: CommandBuffer, target_image_view: ImageView) {
         let color_attachment = self.create_rendering_attachment_info(
             target_image_view,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -583,7 +598,19 @@ impl App {
                     // {
                     //     ui.text(format!("Frame: {}", frame_number));
                     // }
-                    ui.show_demo_window(&mut true);
+
+                    ui.color_button_config("deneme", [1.0, 0.0, 0.0, 1.0])
+                        .border(true)
+                        .tooltip(false)
+                        .build();
+                    if ui.color_button("Debug Color", [1.0, 0.0, 0.0, 1.0]) {
+                        dbg!("Debug Color");
+                    }
+                    ui.same_line_with_spacing(0.0, 10.0);
+                    if ui.color_button("Debug Color", [1.0, 1.0, 0.0, 1.0]) {
+                        dbg!("Debug Color");
+                    }
+                    //ui.show_demo_window(&mut true);
                 });
             imgui_platform_mut.prepare_render(ui, window);
             let draw_data = imgui_context_mut.render();

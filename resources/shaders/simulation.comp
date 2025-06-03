@@ -2,8 +2,8 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(rgba16ui,set = 0, binding = 0)   uniform uimage2D    image1;
-layout(rgba16f,set = 0, binding = 1)    uniform image2D     image2;
+layout(rgba16ui,set = 0, binding = 0) uniform uimage2D image1;
+layout(rgba16f,set = 0, binding = 1) uniform image2D image2;
 
 layout( push_constant ) uniform constants
 {
@@ -23,24 +23,26 @@ void main()
     uvec4 properties1;
     vec4 properties2;
 
-    ivec2 coords = ivec2(gl_GlobalInvocationID.xy) * 2 + PushConstants.batch_offset;
+    ivec2 coords = ivec2(gl_GlobalInvocationID.xy) * 3 + PushConstants.batch_offset;
+    if (coords.x >= 512) return;
+    if (coords.y >= 512) return;
     properties1 = imageLoad(image1, coords);
     if (properties1.r==0) return;
     properties2 = imageLoad(image2, coords);
     properties2.g += PushConstants.delta_time*20; //acceleration
-    properties2.b += properties2.g * PushConstants.delta_time;
+    properties2.a += properties2.g * PushConstants.delta_time;
 
     int movement = 0;
-    while (properties2.b >= 1){
+    if (properties2.a >= 1){
         ivec2 next_coords = coords + ivec2(0,movement+1);
         uvec4 next_properties = imageLoad(image1, next_coords);
         if (next_coords.y >383 || next_properties.r > 0){
-            properties2.b = 0;
-            properties2.g = 0;
-            break;
+            properties2.a = 1;
+            properties2.g *= 0.95;
+        }else {
+            movement += 1;
+            properties2.a -= 1;
         }
-        movement+=1;
-        properties2.b -= 1;
     }
     if (movement>0){
         clear(coords);
