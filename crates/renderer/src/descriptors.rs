@@ -49,6 +49,11 @@ impl Descriptors {
             DescriptorType::STORAGE_IMAGE,
             ShaderStageFlags::COMPUTE,
         );
+        simulation_descriptor_layout_builder.add_binding(
+            2,
+            DescriptorType::STORAGE_IMAGE,
+            ShaderStageFlags::COMPUTE,
+        );
 
         let mut render_descriptor_layout_builder = DescriptorLayoutBuilder::new();
         render_descriptor_layout_builder.add_binding(
@@ -108,9 +113,13 @@ impl Descriptors {
     fn update_simulation(&self, logical_device: &Device, swapchain: &Swapchain) {
         let image_infos_0 = [DescriptorImageInfo::default()
             .image_layout(ImageLayout::GENERAL)
-            .image_view(swapchain.simulation_image1.image_view)];
+            .image_view(swapchain.simulation_image0.image_view)];
 
         let image_infos_1 = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::GENERAL)
+            .image_view(swapchain.simulation_image1.image_view)];
+
+        let image_infos_2 = [DescriptorImageInfo::default()
             .image_layout(ImageLayout::GENERAL)
             .image_view(swapchain.simulation_image2.image_view)];
 
@@ -127,6 +136,12 @@ impl Descriptors {
                 .descriptor_count(1)
                 .descriptor_type(DescriptorType::STORAGE_IMAGE)
                 .image_info(&image_infos_1),
+            WriteDescriptorSet::default()
+                .dst_binding(2)
+                .dst_set(self.simulation_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::STORAGE_IMAGE)
+                .image_info(&image_infos_2),
         ];
         unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
     }

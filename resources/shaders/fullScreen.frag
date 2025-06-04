@@ -6,7 +6,6 @@ layout(location = 0) out vec4 color;
 layout(set = 0, binding = 0) uniform usampler2D image1;
 layout(set = 0, binding = 1) uniform sampler2D image2;
 
-uvec4 properties1;
 
 layout( push_constant ) uniform constants
 {
@@ -18,6 +17,7 @@ layout( push_constant ) uniform constants
 
 
 void main() {
+    uvec4 properties1;
     vec2 mappedUv = mix(PushConstants.uv_min,PushConstants.uv_max, uv);
     properties1 = texture(image1,mappedUv);
     if (properties1.r>0){

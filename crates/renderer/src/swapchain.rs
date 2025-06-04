@@ -14,6 +14,7 @@ pub struct Swapchain {
     pub image_views: Vec<ImageView>,
     pub images: Vec<Image>,
     pub extent: Extent2D,
+    pub simulation_image0: AllocatedImage,
     pub simulation_image1: AllocatedImage,
     pub simulation_image2: AllocatedImage,
     pub render_image: AllocatedImage,
@@ -108,6 +109,16 @@ impl Swapchain {
             ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::COLOR_ATTACHMENT,
             ImageAspectFlags::COLOR,
         );
+        let simulation_image0 = AllocatedImage::new(
+            device,
+            allocator,
+            Format::R8_UINT,
+            simulation_extent,
+            ImageUsageFlags::TRANSFER_SRC
+                | ImageUsageFlags::TRANSFER_DST
+                | ImageUsageFlags::STORAGE,
+            ImageAspectFlags::COLOR,
+        );
         let simulation_image1 = AllocatedImage::new(
             device,
             allocator,
@@ -137,6 +148,7 @@ impl Swapchain {
             images,
             image_views,
             extent,
+            simulation_image0,
             simulation_image1,
             simulation_image2,
             render_image,
@@ -145,6 +157,7 @@ impl Swapchain {
 
     pub fn cleanup(&mut self, logical_device: &ash::Device, allocator: &Allocator) {
         unsafe {
+            self.simulation_image0.cleanup(logical_device, allocator);
             self.simulation_image1.cleanup(logical_device, allocator);
             self.simulation_image2.cleanup(logical_device, allocator);
             self.render_image.cleanup(logical_device, allocator);

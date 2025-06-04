@@ -2,8 +2,9 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(rgba16ui,set = 0, binding = 0) uniform uimage2D image1;
-layout(rgba16f,set = 0, binding = 1) uniform image2D image2;
+layout(r8ui,set = 0, binding = 0) uniform uimage2D image0;
+layout(rgba8ui,set = 0, binding = 1) uniform uimage2D image1;  //material, ?,?,?
+layout(rgba16f,set = 0, binding = 2) uniform image2D image2;    //velocity x,velocity y, subpos x, subpos y
 
 layout( push_constant ) uniform constants
 {
@@ -14,29 +15,36 @@ layout( push_constant ) uniform constants
     ivec2 batch_offset;
 } PushConstants;
 
+const int GRID_WIDTH = 512;
+const int GRID_HEIGHT = 512;
+
 void write1(ivec2 coord, uvec4 data);
 void write2(ivec2 coord, vec4 data);
 void clear(ivec2 coord);
+void setDirty(ivec2 coord);
 
 void main()
 {
     uvec4 properties1;
     vec4 properties2;
+    uint flags;
+
 
     ivec2 coords = ivec2(gl_GlobalInvocationID.xy) * 3 + PushConstants.batch_offset;
-    if (coords.x >= 512) return;
-    if (coords.y >= 512) return;
+    if (coords.x >= GRID_WIDTH || coords.y >= GRID_HEIGHT) return;
     properties1 = imageLoad(image1, coords);
-    if (properties1.r==0) return;
+    flags = imageLoad(image0,coords).r;
+    if (properties1.r == 0) return;
+    if (flags == 1) return;
     properties2 = imageLoad(image2, coords);
-    properties2.g += PushConstants.delta_time*20; //acceleration
+    properties2.g += PushConstants.delta_time*100; //acceleration
     properties2.a += properties2.g * PushConstants.delta_time;
 
     int movement = 0;
     if (properties2.a >= 1){
         ivec2 next_coords = coords + ivec2(0,movement+1);
         uvec4 next_properties = imageLoad(image1, next_coords);
-        if (next_coords.y >383 || next_properties.r > 0){
+        if (next_coords.y >380 || next_properties.r > 0){
             properties2.a = 1;
             properties2.g *= 0.95;
         }else {
@@ -50,8 +58,13 @@ void main()
         write2(coords,properties2);
     }
     coords += ivec2(0,movement);
+    setDirty(coords);
     write1(coords,properties1);
     write2(coords,properties2);
+}
+
+void setDirty(ivec2 coord){
+    imageStore(image0,coord,uvec4(1,0,0,0));
 }
 
 void write1(ivec2 coord,uvec4 data){

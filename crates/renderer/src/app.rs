@@ -3,11 +3,11 @@ use crate::images::{copy_image_to_image, transition_image_layout};
 use crate::imgui::{create_imgui_renderer, setup_imgui};
 use crate::pipelines::{MapEditorPushConstants, PushConstants};
 use ash::vk::{
-    AccessFlags2, AttachmentLoadOp, AttachmentStoreOp, ClearValue, CommandBuffer,
+    AccessFlags2, AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearValue, CommandBuffer,
     CommandBufferResetFlags, CommandBufferSubmitInfo, CommandPool, DependencyInfo, Fence,
-    ImageLayout, ImageView, MemoryBarrier2, Offset2D, PipelineBindPoint, PipelineStageFlags2,
-    PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo, SemaphoreSubmitInfo,
-    ShaderStageFlags, SubmitInfo2, Viewport,
+    ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, MemoryBarrier2, Offset2D,
+    PipelineBindPoint, PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo,
+    RenderingInfo, SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
 };
 use glam::{IVec2, Vec2, vec2};
 use imgui::Context;
@@ -156,10 +156,12 @@ impl App {
         if self.close_requested {
             return;
         }
+        let steps = 5;
         let current_frame = Instant::now();
         let delta_time = current_frame
             .duration_since(self.last_frame.unwrap())
-            .as_secs_f32();
+            .as_secs_f32()
+            / steps as f32;
         let scale = 6.0;
         let source = scale * 512.0;
         let uv_min = vec2(
@@ -225,6 +227,13 @@ impl App {
         transition_image_layout(
             &self.renderer().device,
             command_buffer,
+            self.renderer().swapchain.simulation_image0.image,
+            ImageLayout::UNDEFINED,
+            ImageLayout::GENERAL,
+        );
+        transition_image_layout(
+            &self.renderer().device,
+            command_buffer,
             self.renderer().swapchain.simulation_image1.image,
             ImageLayout::UNDEFINED,
             ImageLayout::GENERAL,
@@ -237,11 +246,13 @@ impl App {
             ImageLayout::GENERAL,
         );
 
-        //self.draw_background(command_buffer);
         if self.mouse_pressed {
             self.run_map_editor(command_buffer, uv_min);
         }
-        self.run_simulation(command_buffer);
+        for _ in 0..steps {
+            self.clear_flags(command_buffer);
+            self.run_simulation(command_buffer);
+        }
 
         transition_image_layout(
             &self.renderer().device,
@@ -367,25 +378,25 @@ impl App {
         }
     }
 
-    // fn draw_background(&mut self, command_buffer: CommandBuffer) {
-    //     let clear_color = ClearColorValue {
-    //         float32: [0.0, 0.0, 0.0, 1.0],
-    //     };
-    //     let clear_range = ImageSubresourceRange::default()
-    //         .aspect_mask(ImageAspectFlags::COLOR)
-    //         .level_count(1)
-    //         .layer_count(1);
-    //     let clear_ranges = [clear_range];
-    //     unsafe {
-    //         self.renderer().device.logical.cmd_clear_color_image(
-    //             command_buffer,
-    //             self.renderer().swapchain.compute_image.image,
-    //             ImageLayout::GENERAL,
-    //             &clear_color,
-    //             &clear_ranges,
-    //         );
-    //     }
-    // }
+    fn clear_flags(&mut self, command_buffer: CommandBuffer) {
+        let clear_color = ClearColorValue {
+            uint32: [0, 0, 0, 0],
+        };
+        let clear_range = ImageSubresourceRange::default()
+            .aspect_mask(ImageAspectFlags::COLOR)
+            .level_count(1)
+            .layer_count(1);
+        let clear_ranges = [clear_range];
+        unsafe {
+            self.renderer().device.logical.cmd_clear_color_image(
+                command_buffer,
+                self.renderer().swapchain.simulation_image0.image,
+                ImageLayout::GENERAL,
+                &clear_color,
+                &clear_ranges,
+            );
+        }
+    }
 
     fn run_map_editor(&mut self, command_buffer: CommandBuffer, uv_min: Vec2) {
         unsafe {
