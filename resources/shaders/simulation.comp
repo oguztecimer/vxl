@@ -17,6 +17,9 @@ layout( push_constant ) uniform constants
 
 const int GRID_WIDTH = 512;
 const int GRID_HEIGHT = 512;
+const uint STEPS = 5;
+const float FIXED_STEP = 0.02;
+const float DELTA_TIME = FIXED_STEP/STEPS;
 
 void write1(ivec2 coord, uvec4 data);
 void write2(ivec2 coord, vec4 data);
@@ -37,8 +40,8 @@ void main()
     if (properties1.r == 0) return;
     if (flags == 1) return;
     properties2 = imageLoad(image2, coords);
-    properties2.g += 0.003*100; //acceleration
-    properties2.a += properties2.g * 0.003;
+    properties2.g += DELTA_TIME*100; //acceleration
+    properties2.a += properties2.g * DELTA_TIME;
 
     int movement = 0;
     if (properties2.a >= 1){

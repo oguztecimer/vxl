@@ -112,10 +112,17 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 let window_size = self.window.as_ref().unwrap().inner_size();
+                let frame_start_time = Instant::now();
                 if let Some(imgui_context) = self.imgui_context.as_mut() {
                     imgui_context.io_mut().display_size =
                         [window_size.width as f32, window_size.height as f32];
                     self.draw_frame();
+                }
+                let time_step = 0.02;
+                let frame_duration = Instant::now().duration_since(frame_start_time).as_secs_f64();
+                let diff = time_step-frame_duration;
+                if diff > 0.0 {
+                    std::thread::sleep(std::time::Duration::from_secs_f64(diff));
                 }
             }
             WindowEvent::Resized(_) => {
