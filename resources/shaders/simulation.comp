@@ -17,7 +17,7 @@ layout( push_constant ) uniform constants
 
 const int GRID_WIDTH = 512;
 const int GRID_HEIGHT = 512;
-const uint STEPS = 5;
+const float STEPS = 20;
 const float FIXED_STEP = 0.02;
 const float DELTA_TIME = FIXED_STEP/STEPS;
 
@@ -40,7 +40,7 @@ void main()
     if (properties1.r == 0) return;
     if (flags == 1) return;
     properties2 = imageLoad(image2, coords);
-    properties2.g += DELTA_TIME*100; //acceleration
+    properties2.g += DELTA_TIME*200; //acceleration
     properties2.a += properties2.g * DELTA_TIME;
 
     int movement = 0;

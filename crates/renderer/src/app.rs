@@ -119,8 +119,10 @@ impl ApplicationHandler for App {
                     self.draw_frame();
                 }
                 let time_step = 0.02;
-                let frame_duration = Instant::now().duration_since(frame_start_time).as_secs_f64();
-                let diff = time_step-frame_duration;
+                let frame_duration = Instant::now()
+                    .duration_since(frame_start_time)
+                    .as_secs_f64();
+                let diff = time_step - frame_duration;
                 if diff > 0.0 {
                     std::thread::sleep(std::time::Duration::from_secs_f64(diff));
                 }
@@ -163,12 +165,9 @@ impl App {
         if self.close_requested {
             return;
         }
-        let steps = 5;
+        let steps = 20;
         let current_frame = Instant::now();
-        let delta_time = current_frame
-            .duration_since(self.last_frame.unwrap())
-            .as_secs_f32()
-            / steps as f32;
+
         let scale = 6.0;
         let source = scale * 512.0;
         let uv_min = vec2(
@@ -181,12 +180,12 @@ impl App {
             .pipelines
             .simulation_pipeline
             .data
-            .update(delta_time, uv_min, uv_max);
+            .update(0.0, uv_min, uv_max);
         self.renderer_mut()
             .pipelines
             .render_pipeline
             .data
-            .update(delta_time, uv_min, uv_max);
+            .update(0.0, uv_min, uv_max);
         let fences = [self.renderer().commands.get_current_frame().render_fence];
         unsafe {
             self.renderer()
