@@ -37,8 +37,8 @@ void main()
     if (properties1.r == 0) return;
     if (flags == 1) return;
     properties2 = imageLoad(image2, coords);
-    properties2.g += PushConstants.delta_time*100; //acceleration
-    properties2.a += properties2.g * PushConstants.delta_time;
+    properties2.g += 0.003*100; //acceleration
+    properties2.a += properties2.g * 0.003;
 
     int movement = 0;
     if (properties2.a >= 1){
