@@ -8,15 +8,15 @@ layout(rgba16f,set = 0, binding = 2) uniform image2D image2;    //velocity x,vel
 
 layout( push_constant ) uniform constants
 {
-    uint swap_io;
-    float delta_time;
     vec2 uv_min;
     vec2 uv_max;
     ivec2 batch_offset;
+    uint frame_number;
 } PushConstants;
 
 const int GRID_WIDTH = 512;
-const int GRID_HEIGHT = 512;
+//const int GRID_HEIGHT = 512;
+const int GRID_HEIGHT = 380;
 const float STEPS = 20;
 const float FIXED_STEP = 0.02;
 const float DELTA_TIME = FIXED_STEP/STEPS;
@@ -25,6 +25,8 @@ void write1(ivec2 coord, uvec4 data);
 void write2(ivec2 coord, vec4 data);
 void clear(ivec2 coord);
 void setDirty(ivec2 coord);
+float random();
+int randomSign();
 
 void main()
 {
@@ -32,38 +34,111 @@ void main()
     vec4 properties2;
     uint flags;
 
-
     ivec2 coords = ivec2(gl_GlobalInvocationID.xy) * 3 + PushConstants.batch_offset;
+    ivec2 originalCoords = coords;
     if (coords.x >= GRID_WIDTH || coords.y >= GRID_HEIGHT) return;
-    properties1 = imageLoad(image1, coords);
     flags = imageLoad(image0,coords).r;
-    if (properties1.r == 0) return;
     if (flags == 1) return;
+    properties1 = imageLoad(image1, coords);
+    if (properties1.r == 0) return;
     properties2 = imageLoad(image2, coords);
-    properties2.g += DELTA_TIME*200; //acceleration
+
+    float friction = 0.001;
+    float slidingFriction = 0.3;
+
+    bool canApplyVerticalForce = false;
+    if (properties2.g != 0){
+        int movement = int(sign(properties2.g));
+        ivec2 next_coords = coords + ivec2(0,movement);
+        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160) {
+            properties2.r *= 1-friction;
+        }else{
+            uvec4 next_properties1 = imageLoad(image1, next_coords);
+            if (next_properties1.r > 0) {
+                properties2.r *= 1-friction;
+            }else{
+                canApplyVerticalForce = true;
+            }
+        }
+    }else{
+        canApplyVerticalForce = true;
+    }
+    if (canApplyVerticalForce){
+        properties2.g += DELTA_TIME*200; //acceleration
+    }
     properties2.a += properties2.g * DELTA_TIME;
 
-    int movement = 0;
-    if (properties2.a >= 1){
-        ivec2 next_coords = coords + ivec2(0,movement+1);
-        uvec4 next_properties = imageLoad(image1, next_coords);
-        if (next_coords.y >380 || next_properties.r > 0){
-            properties2.a = 1;
-            properties2.g *= 0.95;
-        }else {
-            movement += 1;
-            properties2.a -= 1;
+    int yMovement = 0;
+    if (abs(properties2.a) >= 1){
+        int movement = int(sign(properties2.a));
+        ivec2 next_coords = coords + ivec2(0,movement);
+        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160){
+            properties2.a = 0;
+            properties2.g = 0;
+        }else{
+            uvec4 next_properties1 = imageLoad(image1, next_coords);
+            vec4 next_properties2 = imageLoad(image2, next_coords);
+            if (next_properties1.r > 0){
+                properties2.a = yMovement;
+                float relativeVelocity = properties2.g - next_properties2.g;
+                float changeInVelocity = relativeVelocity/2;
+                float axisTransferAmount = (1-slidingFriction) * changeInVelocity;
+                int randomSign = randomSign();
+                float otherAxisVelocity = properties2.r + axisTransferAmount * randomSign;
+
+                properties2.r = otherAxisVelocity;
+                properties2.g -= changeInVelocity;
+                next_properties2.g += changeInVelocity;
+                write2(next_coords,next_properties2);
+            }else {
+                coords += ivec2(0,movement);
+                yMovement += movement;
+                properties2.a -= movement;
+            }
         }
     }
-    if (movement>0){
-        clear(coords);
+
+
+
+
+    properties2.b += properties2.r * DELTA_TIME;
+    int xMovement = 0;
+    if (abs(properties2.b) >= 1){
+        int movement = int(sign(properties2.b));
+        ivec2 next_coords = coords + ivec2(movement,0);
+        if (next_coords.x >= GRID_WIDTH || next_coords.x <0){
+            properties2.b = 0;
+            properties2.r = 0;
+        }else{
+            uvec4 next_properties1 = imageLoad(image1, next_coords);
+            vec4 next_properties2 = imageLoad(image2, next_coords);
+            if (next_properties1.r > 0){
+                properties2.b = xMovement;
+                float relativeVelocity = properties2.r - next_properties2.r;
+                float changeInVelocity = relativeVelocity/2;
+                float axisTransferAmount = (1-slidingFriction) * changeInVelocity;
+                properties2.g += axisTransferAmount;
+                properties2.r -= changeInVelocity;
+//                next_properties2.r += changeInVelocity;
+//                write2(next_coords,next_properties2);
+            }else {
+                coords += ivec2(movement,0);
+                xMovement += movement;
+                properties2.b -= movement;
+                properties2.r *= 0.97;      //drag
+            }
+        }
+    }
+
+
+    if (yMovement!=0 || xMovement!=0){
+        clear(originalCoords);
+        setDirty(coords);
+        write1(coords,properties1);
+        write2(coords,properties2);
     }else{
         write2(coords,properties2);
     }
-    coords += ivec2(0,movement);
-    setDirty(coords);
-    write1(coords,properties1);
-    write2(coords,properties2);
 }
 
 void setDirty(ivec2 coord){
@@ -81,4 +156,16 @@ void write2(ivec2 coord,vec4 data){
 void clear(ivec2 coord){
     write1(coord,uvec4(0,0,0,0));
     write2(coord,vec4(0.0,0.0,0.0,0.0));
+}
+
+float random() {
+    vec2 pos = vec2(gl_GlobalInvocationID.xy);
+    float seed = float(PushConstants.frame_number) * 0.1;
+    vec2 seed_vec = vec2(seed,seed + 1.0) + pos;
+    return fract(sin(dot(seed_vec, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+int randomSign() {
+    float r = random();
+    return r < 0.5 ? -1 : 1;
 }

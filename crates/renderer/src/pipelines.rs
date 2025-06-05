@@ -12,6 +12,7 @@ use ash::vk::{
     ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags,
 };
 use glam::{IVec2, Vec2};
+use rand::*;
 use std::ffi::CString;
 use vk_shader_macros::include_glsl;
 
@@ -23,11 +24,10 @@ const FRAG: &[u32] = include_glsl!("../../resources/shaders/fullScreen.frag");
 #[repr(C)]
 #[derive(Default, Copy, Clone, Debug)]
 pub struct PushConstants {
-    pub swap_io: u8,
-    pub delta_time: f32,
     pub uv_min: Vec2,
     pub uv_max: Vec2,
     pub batch_offset: IVec2,
+    pub frame_number: u8,
 }
 
 #[repr(C)]
@@ -35,6 +35,7 @@ pub struct PushConstants {
 pub struct MapEditorPushConstants {
     pub coordinate: IVec2,
     pub material: u32,
+    pub variant: u32,
 }
 
 pub struct MapEditorPipeline {
@@ -292,8 +293,7 @@ impl Pipelines {
             logical_device,
             descriptors,
             PushConstants {
-                swap_io: 0,
-                delta_time: 0.0,
+                frame_number: 0,
                 uv_min: Vec2 { x: 0.0, y: 0.0 },
                 uv_max: Vec2 { x: 1.0, y: 1.0 },
                 batch_offset: IVec2::new(0, 0),
@@ -303,8 +303,7 @@ impl Pipelines {
             logical_device,
             descriptors,
             PushConstants {
-                swap_io: 0,
-                delta_time: 0.0,
+                frame_number: 0,
                 uv_min: Vec2 { x: 0.0, y: 0.0 },
                 uv_max: Vec2 { x: 1.0, y: 1.0 },
                 batch_offset: IVec2::new(0, 0),
@@ -316,6 +315,7 @@ impl Pipelines {
             MapEditorPushConstants {
                 coordinate: IVec2::default(),
                 material: 0,
+                variant: 0,
             },
         );
         Self {
@@ -333,11 +333,14 @@ impl Pipelines {
 }
 
 impl PushConstants {
-    pub fn update(&mut self, delta_time: f32, uv_min: Vec2, uv_max: Vec2) {
-        self.swap_io = if self.swap_io == 0 { 1 } else { 0 };
-        self.delta_time = delta_time;
+    pub fn update(&mut self, uv_min: Vec2, uv_max: Vec2) {
+        self.update_frame_number();
         self.uv_min = uv_min;
         self.uv_max = uv_max;
+    }
+
+    pub fn update_frame_number(&mut self) {
+        self.frame_number = self.frame_number.wrapping_add(1);
     }
 }
 
@@ -345,5 +348,6 @@ impl MapEditorPushConstants {
     pub fn update(&mut self, coordinate: IVec2, material: u32) {
         self.coordinate = coordinate;
         self.material = material;
+        self.variant = random_range(0..9);
     }
 }

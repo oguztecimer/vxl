@@ -180,12 +180,12 @@ impl App {
             .pipelines
             .simulation_pipeline
             .data
-            .update(0.0, uv_min, uv_max);
+            .update(uv_min, uv_max);
         self.renderer_mut()
             .pipelines
             .render_pipeline
             .data
-            .update(0.0, uv_min, uv_max);
+            .update(uv_min, uv_max);
         let fences = [self.renderer().commands.get_current_frame().render_fence];
         unsafe {
             self.renderer()

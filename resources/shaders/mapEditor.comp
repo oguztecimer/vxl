@@ -8,6 +8,7 @@ layout( push_constant ) uniform constants
 {
     ivec2 coordinate;
     uint material;
+    uint variant;
 } PushConstants;
 
 
@@ -15,5 +16,6 @@ void main()
 {
     uvec4 data = imageLoad(image, PushConstants.coordinate);
     data.r = PushConstants.material;
+    data.g = PushConstants.variant;
     imageStore(image,PushConstants.coordinate,data);
 }
