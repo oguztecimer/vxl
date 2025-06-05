@@ -141,7 +141,7 @@ impl ApplicationHandler for App {
                 self.mouse_pressed = mouse_pressed;
             }
             WindowEvent::CursorMoved { position, .. } => {
-                let pos: LogicalPosition<i32> = position.to_logical(6.0);
+                let pos: LogicalPosition<i32> = position.to_logical(5.0);
                 self.mouse_pos = IVec2::new(pos.x, pos.y);
             }
 
@@ -168,7 +168,7 @@ impl App {
         let steps = 20;
         let current_frame = Instant::now();
 
-        let scale = 6.0;
+        let scale = 5.0;
         let source = scale * 512.0;
         let uv_min = vec2(
             1.0 - (self.renderer().swapchain.extent.width as f32 / source),

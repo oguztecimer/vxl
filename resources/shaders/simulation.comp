@@ -27,79 +27,45 @@ void clear(ivec2 coord);
 void setDirty(ivec2 coord);
 float random();
 int randomSign();
+bool handleMovement(
+    ivec2 originalCoords,
+    inout ivec2 coords,
+    inout float velocity,
+    inout float otherVelocity,
+    inout float subPos,
+    uint materialIndex,
+    bool isHorizontal,
+    float friction,
+    float slidingFriction,
+    float acceleration
+);
 
 void main()
 {
+    //PARAMETERS
     uvec4 properties1;
     vec4 properties2;
     uint flags;
-
     ivec2 coords = ivec2(gl_GlobalInvocationID.xy) * 3 + PushConstants.batch_offset;
     ivec2 originalCoords = coords;
+    //
+
+    //EARLY RETURNS
     if (coords.x >= GRID_WIDTH || coords.y >= GRID_HEIGHT) return;
     flags = imageLoad(image0,coords).r;
     if (flags == 1) return;
     properties1 = imageLoad(image1, coords);
     if (properties1.r == 0) return;
     properties2 = imageLoad(image2, coords);
+    //
 
+    //MATERIAL PROPERTIES
     float friction = 0.001;
     float slidingFriction = 0.3;
+    //
 
-    bool canApplyVerticalForce = false;
-    if (properties2.g != 0){
-        int movement = int(sign(properties2.g));
-        ivec2 next_coords = coords + ivec2(0,movement);
-        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160) {
-            properties2.r *= 1-friction;
-        }else{
-            uvec4 next_properties1 = imageLoad(image1, next_coords);
-            if (next_properties1.r > 0) {
-                properties2.r *= 1-friction;
-            }else{
-                canApplyVerticalForce = true;
-            }
-        }
-    }else{
-        canApplyVerticalForce = true;
-    }
-    if (canApplyVerticalForce){
-        properties2.g += DELTA_TIME*200; //acceleration
-    }
-    properties2.a += properties2.g * DELTA_TIME;
-
-    int yMovement = 0;
-    if (abs(properties2.a) >= 1){
-        int movement = int(sign(properties2.a));
-        ivec2 next_coords = coords + ivec2(0,movement);
-        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160){
-            properties2.a = 0;
-            properties2.g = 0;
-        }else{
-            uvec4 next_properties1 = imageLoad(image1, next_coords);
-            vec4 next_properties2 = imageLoad(image2, next_coords);
-            if (next_properties1.r > 0){
-                properties2.a = yMovement;
-                float relativeVelocity = properties2.g - next_properties2.g;
-                float changeInVelocity = relativeVelocity/2;
-                float axisTransferAmount = (1-slidingFriction) * changeInVelocity;
-                int randomSign = randomSign();
-                float otherAxisVelocity = properties2.r + axisTransferAmount * randomSign;
-
-                properties2.r = otherAxisVelocity;
-                properties2.g -= changeInVelocity;
-                next_properties2.g += changeInVelocity;
-                write2(next_coords,next_properties2);
-            }else {
-                coords += ivec2(0,movement);
-                yMovement += movement;
-                properties2.a -= movement;
-            }
-        }
-    }
-
-
-
+    bool yMoved = handleMovement(originalCoords,coords,properties2.g,properties2.r,properties2.a,properties1.r,false,friction,slidingFriction,200);
+    //bool xMoved = handleMovement(originalCoords,coords,properties2.r,properties2.g,properties2.b,properties1.r,true,friction,slidingFriction,0);
 
     properties2.b += properties2.r * DELTA_TIME;
     int xMovement = 0;
@@ -130,8 +96,7 @@ void main()
         }
     }
 
-
-    if (yMovement!=0 || xMovement!=0){
+    if (yMoved || xMovement!=0){
         clear(originalCoords);
         setDirty(coords);
         write1(coords,properties1);
@@ -139,6 +104,70 @@ void main()
     }else{
         write2(coords,properties2);
     }
+}
+
+bool handleMovement(
+ivec2 originalCoords,
+    inout ivec2 coords,
+    inout float velocity,
+    inout float otherVelocity,
+    inout float subPos,
+    uint materialIndex,
+    bool isHorizontal,
+    float friction,
+    float slidingFriction,
+    float acceleration
+) {
+    bool canApplyForce = false;
+    if (velocity != 0){
+        int movement = int(sign(velocity));
+        ivec2 next_coords = coords + ivec2(0,movement);
+        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160) {   //temp
+            otherVelocity *= 1-friction;
+        }else{
+            uvec4 next_properties1 = imageLoad(image1, next_coords);
+            if (next_properties1.r > 0) {
+                otherVelocity *= 1-friction;
+            }else{
+                canApplyForce = true;
+            }
+        }
+    }else{
+        canApplyForce = true;
+    }
+    if (canApplyForce){
+        velocity += DELTA_TIME * acceleration;
+    }
+    subPos += velocity * DELTA_TIME;
+
+    int yMovement = 0;
+    if (abs(subPos) >= 1){
+        int movement = int(sign(subPos));
+        ivec2 next_coords = coords + ivec2(0,movement);
+        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160){    //temp
+            subPos = 0;
+            velocity = 0;
+        }else{
+            uvec4 next_properties1 = imageLoad(image1, next_coords);
+            vec4 next_properties2 = imageLoad(image2, next_coords);
+            if (next_properties1.r > 0){
+                subPos = yMovement;
+                float relativeVelocity = velocity - next_properties2.g;
+                float changeInVelocity = relativeVelocity/2;
+                float axisTransferAmount = (1-slidingFriction) * changeInVelocity;
+                int randomSign = randomSign();
+                otherVelocity += axisTransferAmount * randomSign;
+                velocity -= changeInVelocity;
+                next_properties2.g += changeInVelocity;
+                write2(next_coords,next_properties2);
+            }else {
+                coords += ivec2(0,movement);
+                yMovement += movement;
+                subPos -= movement;
+            }
+        }
+    }
+    return yMovement != 0;
 }
 
 void setDirty(ivec2 coord){
