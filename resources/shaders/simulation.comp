@@ -65,38 +65,9 @@ void main()
     //
 
     bool yMoved = handleMovement(originalCoords,coords,properties2.g,properties2.r,properties2.a,properties1.r,false,friction,slidingFriction,200);
-    //bool xMoved = handleMovement(originalCoords,coords,properties2.r,properties2.g,properties2.b,properties1.r,true,friction,slidingFriction,0);
-
-    properties2.b += properties2.r * DELTA_TIME;
-    int xMovement = 0;
-    if (abs(properties2.b) >= 1){
-        int movement = int(sign(properties2.b));
-        ivec2 next_coords = coords + ivec2(movement,0);
-        if (next_coords.x >= GRID_WIDTH || next_coords.x <0){
-            properties2.b = 0;
-            properties2.r = 0;
-        }else{
-            uvec4 next_properties1 = imageLoad(image1, next_coords);
-            vec4 next_properties2 = imageLoad(image2, next_coords);
-            if (next_properties1.r > 0){
-                properties2.b = xMovement;
-                float relativeVelocity = properties2.r - next_properties2.r;
-                float changeInVelocity = relativeVelocity/2;
-                float axisTransferAmount = (1-slidingFriction) * changeInVelocity;
-                properties2.g += axisTransferAmount;
-                properties2.r -= changeInVelocity;
-//                next_properties2.r += changeInVelocity;
-//                write2(next_coords,next_properties2);
-            }else {
-                coords += ivec2(movement,0);
-                xMovement += movement;
-                properties2.b -= movement;
-                properties2.r *= 0.97;      //drag
-            }
-        }
-    }
-
-    if (yMoved || xMovement!=0){
+    bool xMoved = handleMovement(originalCoords,coords,properties2.r,properties2.g,properties2.b,properties1.r,true,friction,slidingFriction,0);
+    
+    if (yMoved || xMoved){
         clear(originalCoords);
         setDirty(coords);
         write1(coords,properties1);
@@ -119,9 +90,15 @@ ivec2 originalCoords,
     float acceleration
 ) {
     bool canApplyForce = false;
+    ivec2 axisVector;
+    if (isHorizontal){
+        axisVector = ivec2(1,0);
+    }else{
+        axisVector = ivec2(0,1);
+    }
     if (velocity != 0){
         int movement = int(sign(velocity));
-        ivec2 next_coords = coords + ivec2(0,movement);
+        ivec2 next_coords = coords + movement * axisVector;
         if (next_coords.y >= GRID_HEIGHT || next_coords.y <160) {   //temp
             otherVelocity *= 1-friction;
         }else{
@@ -143,7 +120,7 @@ ivec2 originalCoords,
     int yMovement = 0;
     if (abs(subPos) >= 1){
         int movement = int(sign(subPos));
-        ivec2 next_coords = coords + ivec2(0,movement);
+        ivec2 next_coords = coords + movement * axisVector;
         if (next_coords.y >= GRID_HEIGHT || next_coords.y <160){    //temp
             subPos = 0;
             velocity = 0;
@@ -161,7 +138,7 @@ ivec2 originalCoords,
                 next_properties2.g += changeInVelocity;
                 write2(next_coords,next_properties2);
             }else {
-                coords += ivec2(0,movement);
+                coords += movement * axisVector;
                 yMovement += movement;
                 subPos -= movement;
             }
