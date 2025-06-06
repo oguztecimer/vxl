@@ -61,12 +61,12 @@ void main()
 
     //MATERIAL PROPERTIES
     float friction = 0.001;
-    float slidingFriction = 0.3;
+    float slidingFriction = 0.7;
     //
 
     bool yMoved = handleMovement(originalCoords,coords,properties2.g,properties2.r,properties2.a,properties1.r,false,friction,slidingFriction,200);
     bool xMoved = handleMovement(originalCoords,coords,properties2.r,properties2.g,properties2.b,properties1.r,true,friction,slidingFriction,0);
-    
+
     if (yMoved || xMoved){
         clear(originalCoords);
         setDirty(coords);
@@ -78,7 +78,7 @@ void main()
 }
 
 bool handleMovement(
-ivec2 originalCoords,
+    ivec2 originalCoords,
     inout ivec2 coords,
     inout float velocity,
     inout float otherVelocity,
@@ -99,7 +99,7 @@ ivec2 originalCoords,
     if (velocity != 0){
         int movement = int(sign(velocity));
         ivec2 next_coords = coords + movement * axisVector;
-        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160) {   //temp
+        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160 || next_coords.x >= GRID_WIDTH || next_coords.x <0) {   //temp
             otherVelocity *= 1-friction;
         }else{
             uvec4 next_properties1 = imageLoad(image1, next_coords);
@@ -121,7 +121,7 @@ ivec2 originalCoords,
     if (abs(subPos) >= 1){
         int movement = int(sign(subPos));
         ivec2 next_coords = coords + movement * axisVector;
-        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160){    //temp
+        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160 || next_coords.x >= GRID_WIDTH || next_coords.x <0){    //temp
             subPos = 0;
             velocity = 0;
         }else{
@@ -129,13 +129,18 @@ ivec2 originalCoords,
             vec4 next_properties2 = imageLoad(image2, next_coords);
             if (next_properties1.r > 0){
                 subPos = yMovement;
-                float relativeVelocity = velocity - next_properties2.g;
+                float relativeVelocity = velocity - (isHorizontal ? next_properties2.r : next_properties2.g);
                 float changeInVelocity = relativeVelocity/2;
                 float axisTransferAmount = (1-slidingFriction) * changeInVelocity;
                 int randomSign = randomSign();
                 otherVelocity += axisTransferAmount * randomSign;
                 velocity -= changeInVelocity;
-                next_properties2.g += changeInVelocity;
+                if (isHorizontal){
+                    next_properties2.r += changeInVelocity;
+                }else{
+                    next_properties2.g += changeInVelocity;
+                }
+
                 write2(next_coords,next_properties2);
             }else {
                 coords += movement * axisVector;
