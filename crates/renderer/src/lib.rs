@@ -9,6 +9,7 @@ mod instance;
 pub mod pipelines;
 mod surface;
 mod swapchain;
+mod buffers;
 
 use crate::commands::Commands;
 use crate::descriptors::Descriptors;

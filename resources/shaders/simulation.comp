@@ -52,7 +52,7 @@ void main()
 
     //EARLY RETURNS
     if (coords.x >= GRID_WIDTH || coords.y >= GRID_HEIGHT) return;
-    flags = imageLoad(image0,coords).r;
+    flags = imageLoadF(image0,coords).r;
     if (flags == 1) return;
     properties1 = imageLoad(image1, coords);
     if (properties1.r == 0) return;
@@ -90,12 +90,7 @@ bool handleMovement(
     float acceleration
 ) {
     bool canApplyForce = false;
-    ivec2 axisVector;
-    if (isHorizontal){
-        axisVector = ivec2(1,0);
-    }else{
-        axisVector = ivec2(0,1);
-    }
+    ivec2 axisVector = ishorizontal ? ivec2(1,0) : ivec2(0,1);
     if (velocity != 0){
         int movement = int(sign(velocity));
         ivec2 next_coords = coords + movement * axisVector;
