@@ -1,10 +1,12 @@
+use crate::buffers::{Buffers, MaterialProperties};
 use crate::swapchain::Swapchain;
 use ash::Device;
 use ash::vk::{
-    DescriptorImageInfo, DescriptorPool, DescriptorPoolCreateFlags, DescriptorPoolCreateInfo,
-    DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout,
-    DescriptorSetLayoutBinding, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo,
-    DescriptorType, ImageLayout, Sampler, SamplerCreateInfo, ShaderStageFlags, WriteDescriptorSet,
+    DescriptorBufferInfo, DescriptorImageInfo, DescriptorPool, DescriptorPoolCreateFlags,
+    DescriptorPoolCreateInfo, DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo,
+    DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutCreateFlags,
+    DescriptorSetLayoutCreateInfo, DescriptorType, ImageLayout, Sampler, SamplerCreateInfo,
+    ShaderStageFlags, WriteDescriptorSet,
 };
 
 pub struct Descriptors {
@@ -23,10 +25,11 @@ pub struct DescriptorLayoutBuilder<'a> {
 }
 
 impl Descriptors {
-    pub fn new(logical_device: &Device, swapchain: &Swapchain) -> Self {
+    pub fn new(logical_device: &Device, swapchain: &Swapchain, buffers: &Buffers) -> Self {
         let sizes = [
             (DescriptorType::STORAGE_IMAGE, 1.0),
             (DescriptorType::COMBINED_IMAGE_SAMPLER, 1.0),
+            (DescriptorType::UNIFORM_BUFFER, 1.0),
         ];
         let global_descriptor_allocator =
             DescriptorAllocator::new(logical_device, 20, Vec::from(sizes));
@@ -52,6 +55,11 @@ impl Descriptors {
         simulation_descriptor_layout_builder.add_binding(
             2,
             DescriptorType::STORAGE_IMAGE,
+            ShaderStageFlags::COMPUTE,
+        );
+        simulation_descriptor_layout_builder.add_binding(
+            3,
+            DescriptorType::UNIFORM_BUFFER,
             ShaderStageFlags::COMPUTE,
         );
 
@@ -93,7 +101,7 @@ impl Descriptors {
             map_editor_descriptor_set,
             sampler,
         };
-        result.update(logical_device, swapchain);
+        result.update(logical_device, swapchain, buffers);
         result
     }
 
@@ -110,7 +118,7 @@ impl Descriptors {
         unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
     }
 
-    fn update_simulation(&self, logical_device: &Device, swapchain: &Swapchain) {
+    fn update_simulation(&self, logical_device: &Device, swapchain: &Swapchain, buffers: &Buffers) {
         let image_infos_0 = [DescriptorImageInfo::default()
             .image_layout(ImageLayout::GENERAL)
             .image_view(swapchain.simulation_image0.image_view)];
@@ -122,6 +130,11 @@ impl Descriptors {
         let image_infos_2 = [DescriptorImageInfo::default()
             .image_layout(ImageLayout::GENERAL)
             .image_view(swapchain.simulation_image2.image_view)];
+
+        let buffer_infos_0 = [DescriptorBufferInfo::default()
+            .buffer(buffers.material_properties_buffer.buffer)
+            .offset(0)
+            .range(size_of::<[MaterialProperties; 256]>() as u64)];
 
         let draw_image_writes = [
             WriteDescriptorSet::default()
@@ -142,6 +155,12 @@ impl Descriptors {
                 .descriptor_count(1)
                 .descriptor_type(DescriptorType::STORAGE_IMAGE)
                 .image_info(&image_infos_2),
+            WriteDescriptorSet::default()
+                .dst_binding(3)
+                .dst_set(self.simulation_descriptor_set)
+                .descriptor_count(1)
+                .descriptor_type(DescriptorType::UNIFORM_BUFFER)
+                .buffer_info(&buffer_infos_0),
         ];
         unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
     }
@@ -173,9 +192,9 @@ impl Descriptors {
         unsafe { logical_device.update_descriptor_sets(&draw_image_writes, &[]) }
     }
 
-    pub fn update(&self, logical_device: &Device, swapchain: &Swapchain) {
+    pub fn update(&self, logical_device: &Device, swapchain: &Swapchain, buffers: &Buffers) {
         self.update_map_editor(logical_device, swapchain);
-        self.update_simulation(logical_device, swapchain);
+        self.update_simulation(logical_device, swapchain, buffers);
         self.update_render(logical_device, swapchain);
     }
 

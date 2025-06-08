@@ -14,6 +14,17 @@ layout( push_constant ) uniform constants
     uint frame_number;
 } PushConstants;
 
+struct MaterialProperties {
+    float friction;
+    float slidingFriction;
+    float acceleration;
+    float reserved;
+};
+
+layout(std140, set = 0, binding = 3) uniform MaterialBuffer {
+    MaterialProperties materials[256];
+} materialBuffer;
+
 const int GRID_WIDTH = 512;
 //const int GRID_HEIGHT = 512;
 const int GRID_HEIGHT = 380;
@@ -28,44 +39,38 @@ void setDirty(ivec2 coord);
 float random();
 int randomSign();
 bool handleMovement(
+    bool isHorizontal,
     ivec2 originalCoords,
     inout ivec2 coords,
     inout float velocity,
-    inout float otherVelocity,
+    inout float otherAxisVelocity,
     inout float subPos,
-    uint materialIndex,
-    bool isHorizontal,
-    float friction,
-    float slidingFriction,
-    float acceleration
+    vec2 forcesTotal
 );
 
 void main()
 {
+    //COORDINATES
+    ivec2 coords = ivec2(gl_GlobalInvocationID.xy) * 3 + PushConstants.batch_offset;
+    ivec2 originalCoords = coords;
+
     //PARAMETERS
     uvec4 properties1;
     vec4 properties2;
     uint flags;
-    ivec2 coords = ivec2(gl_GlobalInvocationID.xy) * 3 + PushConstants.batch_offset;
-    ivec2 originalCoords = coords;
-    //
 
     //EARLY RETURNS
     if (coords.x >= GRID_WIDTH || coords.y >= GRID_HEIGHT) return;
-    flags = imageLoadF(image0,coords).r;
-    if (flags == 1) return;
+    flags = imageLoad(image0,coords).r;
+    if (flags == 1) return; //isDirty flag
     properties1 = imageLoad(image1, coords);
     if (properties1.r == 0) return;
     properties2 = imageLoad(image2, coords);
-    //
 
-    //MATERIAL PROPERTIES
-    float friction = 0.001;
-    float slidingFriction = 0.7;
-    //
-
-    bool yMoved = handleMovement(originalCoords,coords,properties2.g,properties2.r,properties2.a,properties1.r,false,friction,slidingFriction,200);
-    bool xMoved = handleMovement(originalCoords,coords,properties2.r,properties2.g,properties2.b,properties1.r,true,friction,slidingFriction,0);
+    MaterialProperties material_properties = materialBuffer.materials[properties1.r];
+    vec2 forces = vec2(0,200);
+    bool yMoved = handleMovement(false,originalCoords,coords,properties2.g,properties2.r,properties2.a,forces);
+    bool xMoved = handleMovement(true,originalCoords,coords,properties2.r,properties2.g,properties2.b,forces);
 
     if (yMoved || xMoved){
         clear(originalCoords);
@@ -78,73 +83,63 @@ void main()
 }
 
 bool handleMovement(
+    bool isHorizontal,
     ivec2 originalCoords,
     inout ivec2 coords,
     inout float velocity,
-    inout float otherVelocity,
+    inout float otherAxisVelocity,
     inout float subPos,
-    uint materialIndex,
-    bool isHorizontal,
-    float friction,
-    float slidingFriction,
-    float acceleration
+    vec2 forcesTotal
 ) {
-    bool canApplyForce = false;
-    ivec2 axisVector = ishorizontal ? ivec2(1,0) : ivec2(0,1);
-    if (velocity != 0){
-        int movement = int(sign(velocity));
-        ivec2 next_coords = coords + movement * axisVector;
-        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160 || next_coords.x >= GRID_WIDTH || next_coords.x <0) {   //temp
-            otherVelocity *= 1-friction;
-        }else{
-            uvec4 next_properties1 = imageLoad(image1, next_coords);
-            if (next_properties1.r > 0) {
-                otherVelocity *= 1-friction;
-            }else{
-                canApplyForce = true;
-            }
-        }
-    }else{
-        canApplyForce = true;
-    }
-    if (canApplyForce){
-        velocity += DELTA_TIME * acceleration;
-    }
+    float acceleration = isHorizontal ? forcesTotal.x : forcesTotal.y;
+    velocity += DELTA_TIME * acceleration;
     subPos += velocity * DELTA_TIME;
+    int movementDir = int(sign(velocity));
+    if (movementDir == 0) return false;
 
-    int yMovement = 0;
-    if (abs(subPos) >= 1){
-        int movement = int(sign(subPos));
-        ivec2 next_coords = coords + movement * axisVector;
-        if (next_coords.y >= GRID_HEIGHT || next_coords.y <160 || next_coords.x >= GRID_WIDTH || next_coords.x <0){    //temp
-            subPos = 0;
-            velocity = 0;
-        }else{
-            uvec4 next_properties1 = imageLoad(image1, next_coords);
-            vec4 next_properties2 = imageLoad(image2, next_coords);
-            if (next_properties1.r > 0){
-                subPos = yMovement;
-                float relativeVelocity = velocity - (isHorizontal ? next_properties2.r : next_properties2.g);
-                float changeInVelocity = relativeVelocity/2;
-                float axisTransferAmount = (1-slidingFriction) * changeInVelocity;
-                int randomSign = randomSign();
-                otherVelocity += axisTransferAmount * randomSign;
-                velocity -= changeInVelocity;
-                if (isHorizontal){
-                    next_properties2.r += changeInVelocity;
-                }else{
-                    next_properties2.g += changeInVelocity;
-                }
+    ivec2 axisVector = isHorizontal ? ivec2(1,0) : ivec2(0,1);
+    float friction = 0.01;
+    float slidingFriction = 0.7;
 
-                write2(next_coords,next_properties2);
-            }else {
-                coords += movement * axisVector;
-                yMovement += movement;
-                subPos -= movement;
-            }
+    ivec2 next_coords = coords + movementDir * axisVector;
+    if (next_coords.y >= GRID_HEIGHT || next_coords.y <160 || next_coords.x >= GRID_WIDTH || next_coords.x <0) {   //temp
+        otherAxisVelocity *= 1-friction;
+    }else{
+        uvec4 next_properties1 = imageLoad(image1, next_coords);
+        if (next_properties1.r > 0) {
+            otherAxisVelocity *= 1-friction;
         }
     }
-    return yMovement != 0;
+
+    if (next_coords.y >= GRID_HEIGHT || next_coords.y <160 || next_coords.x >= GRID_WIDTH || next_coords.x <0){    //temp
+        subPos = 0;
+        velocity = 0;
+    }else{
+        uvec4 next_properties1 = imageLoad(image1, next_coords);
+        vec4 next_properties2 = imageLoad(image2, next_coords);
+        if (next_properties1.r > 0){
+            MaterialProperties next_material_properties = materialBuffer.materials[next_properties1.r];
+            float relativeVelocity = velocity - (isHorizontal ? next_properties2.r : next_properties2.g);
+            float changeInVelocity = relativeVelocity/2;
+            velocity -= changeInVelocity;
+            if (isHorizontal){
+                next_properties2.r += changeInVelocity;
+            }else{
+                next_properties2.g += changeInVelocity;
+            }
+            changeInVelocity = changeInVelocity < 0.2 ? 0 : changeInVelocity;
+            float axisTransferAmount = (1-slidingFriction) * changeInVelocity;
+            int directionSign = (otherAxisVelocity == 0 ? randomSign() : int(sign(otherAxisVelocity)));
+            otherAxisVelocity += axisTransferAmount * directionSign;
+            write2(next_coords,next_properties2);
+        }else if (abs(subPos) >= 1){
+            int movement = int(sign(subPos));
+            coords += movement * axisVector;
+            subPos -= movement;
+            return true;
+        }
+    }
+    return false;
 }
 
 void setDirty(ivec2 coord){

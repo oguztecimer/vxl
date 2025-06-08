@@ -647,9 +647,11 @@ impl App {
             return false;
         }
         self.renderer_mut().recreate_swap_chain();
-        self.renderer()
-            .descriptors
-            .update(&self.renderer().device.logical, &self.renderer().swapchain);
+        self.renderer().descriptors.update(
+            &self.renderer().device.logical,
+            &self.renderer().swapchain,
+            &self.renderer().buffers,
+        );
         true
     }
 

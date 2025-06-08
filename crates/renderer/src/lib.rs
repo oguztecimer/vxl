@@ -1,4 +1,5 @@
 pub mod app;
+mod buffers;
 pub mod commands;
 mod descriptors;
 pub mod device;
@@ -9,8 +10,8 @@ mod instance;
 pub mod pipelines;
 mod surface;
 mod swapchain;
-mod buffers;
 
+use crate::buffers::Buffers;
 use crate::commands::Commands;
 use crate::descriptors::Descriptors;
 use crate::device::Device;
@@ -28,6 +29,7 @@ pub struct Renderer {
     pub allocator: Option<Allocator>,
     pub swapchain: Swapchain,
     pub commands: Commands,
+    pub buffers: Buffers,
     pub descriptors: Descriptors,
     pub pipelines: Pipelines,
     pub immediate_commands: ImmediateCommands,
@@ -46,7 +48,8 @@ impl Renderer {
             device.queues.graphics.0,
             swapchain.images.len(),
         );
-        let descriptors = Descriptors::new(&device.logical, &swapchain);
+        let buffers = Buffers::new(&allocator);
+        let descriptors = Descriptors::new(&device.logical, &swapchain, &buffers);
         let pipelines = Pipelines::new(&device.logical, &descriptors);
         let immediate_commands = ImmediateCommands::new(&device);
         Renderer {
@@ -56,6 +59,7 @@ impl Renderer {
             allocator: Some(allocator),
             swapchain,
             commands,
+            buffers,
             descriptors,
             pipelines,
             immediate_commands,
