@@ -1,5 +1,7 @@
 [workspace]
-members = [ "crates/core", "crates/game",
+members = [
+    "crates/game",
     "crates/renderer"
 ]
+
 resolver = "2" # Use the latest dependency resolver

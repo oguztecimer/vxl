@@ -4,7 +4,6 @@ pub mod commands;
 mod descriptors;
 pub mod device;
 pub mod images;
-mod imgui;
 mod immediate_commands;
 mod instance;
 pub mod pipelines;
