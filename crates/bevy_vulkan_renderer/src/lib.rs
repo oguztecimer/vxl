@@ -7,6 +7,7 @@ pub mod images;
 mod immediate_commands;
 mod instance;
 pub mod pipelines;
+pub mod plugin;
 mod surface;
 mod swapchain;
 
@@ -18,10 +19,12 @@ use crate::immediate_commands::ImmediateCommands;
 use crate::pipelines::Pipelines;
 use crate::swapchain::*;
 use ash::{Entry, Instance};
+use bevy::prelude::Resource;
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use vk_mem::{Allocator, AllocatorCreateFlags, AllocatorCreateInfo};
-use winit::window::Window;
 
-pub struct Renderer {
+#[derive(Resource)]
+pub struct BevyVulkanRenderer {
     pub instance: instance::Instance,
     pub surface: surface::Surface,
     pub device: Device,
@@ -34,11 +37,19 @@ pub struct Renderer {
     pub immediate_commands: ImmediateCommands,
 }
 
-impl Renderer {
-    pub fn new(window: &Window) -> Renderer {
+impl BevyVulkanRenderer {
+    pub fn new(
+        raw_display_handle: RawDisplayHandle,
+        raw_window_handle: RawWindowHandle,
+    ) -> BevyVulkanRenderer {
         let entry = Entry::linked();
-        let instance = instance::Instance::new(window, &entry);
-        let surface = surface::Surface::new(window, &entry, &instance.handle);
+        let instance = instance::Instance::new(raw_display_handle, &entry);
+        let surface = surface::Surface::new(
+            raw_display_handle,
+            raw_window_handle,
+            &entry,
+            &instance.handle,
+        );
         let device = device::Device::new(&instance.handle, &surface);
         let allocator = Self::create_allocator(&instance.handle, &device);
         let swapchain = Swapchain::new(&instance.handle, &device, &surface, &allocator);
@@ -51,7 +62,7 @@ impl Renderer {
         let descriptors = Descriptors::new(&device.logical, &swapchain, &buffers);
         let pipelines = Pipelines::new(&device.logical, &descriptors);
         let immediate_commands = ImmediateCommands::new(&device);
-        Renderer {
+        BevyVulkanRenderer {
             instance,
             surface,
             device,
@@ -109,7 +120,7 @@ impl Renderer {
     }
 }
 
-impl Drop for Renderer {
+impl Drop for BevyVulkanRenderer {
     fn drop(&mut self) {
         self.cleanup()
     }

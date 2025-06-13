@@ -1,4 +1,4 @@
-use crate::Renderer;
+use crate::BevyVulkanRenderer;
 use crate::images::{copy_image_to_image, transition_image_layout};
 use crate::pipelines::{MapEditorPushConstants, PushConstants};
 use ash::vk::{
@@ -14,12 +14,12 @@ use winit::application::ApplicationHandler;
 use winit::dpi::LogicalPosition;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::{Window, WindowId};
 
 #[derive(Default)]
 pub struct App {
     pub window: Option<Window>,
-    pub renderer: Option<Renderer>,
+    pub renderer: Option<BevyVulkanRenderer>,
     pub close_requested: bool,
     pub last_frame: Option<Instant>,
     pub mouse_pressed: bool,
@@ -27,22 +27,7 @@ pub struct App {
 }
 
 impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window = event_loop
-            .create_window(
-                WindowAttributes::default()
-                    .with_title("vxl")
-                    .with_inner_size(winit::dpi::LogicalSize::new(1200.0, 900.0)),
-            )
-            .unwrap();
-
-        let renderer = Renderer::new(&window);
-
-        self.renderer = Some(renderer);
-        self.window = Some(window);
-        self.last_frame = Some(Instant::now());
-        self.window().request_redraw();
-    }
+    fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
 
     fn window_event(
         &mut self,
@@ -102,10 +87,10 @@ impl ApplicationHandler for App {
 }
 
 impl App {
-    fn renderer_mut(&mut self) -> &mut Renderer {
+    fn renderer_mut(&mut self) -> &mut BevyVulkanRenderer {
         self.renderer.as_mut().unwrap()
     }
-    fn renderer(&self) -> &Renderer {
+    fn renderer(&self) -> &BevyVulkanRenderer {
         self.renderer.as_ref().unwrap()
     }
     fn window(&self) -> &Window {
@@ -126,7 +111,7 @@ impl App {
             1.0 - (self.renderer().swapchain.extent.height as f32 / source),
         ) / 2.0;
         let uv_max = vec2(1.0, 1.0) - uv_min;
-        self.last_frame = Some(current_frame);
+        //self.last_frame = Some(current_frame);
         self.renderer_mut()
             .pipelines
             .simulation_pipeline

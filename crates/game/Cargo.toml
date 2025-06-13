@@ -4,5 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-renderer = {path ="../renderer"}
-winit = "0.30.9"
+bevy_vulkan_renderer = {path ="../bevy_vulkan_renderer"}
+
+
+[dependencies.bevy]
+version = "0.16.0"
+features = [
+    "std",
+    "bevy_winit"
+]
+default-features = false
+

@@ -2,6 +2,7 @@
   <dictionary name="project">
     <words>
       <w>swapchain</w>
+      <w>winit</w>
     </words>
   </dictionary>
 </component>

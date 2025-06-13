@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "crates/game",
-    "crates/renderer"
+    "crates/bevy_vulkan_renderer"
 ]
 
 resolver = "2" # Use the latest dependency resolver

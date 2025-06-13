@@ -1,13 +1,12 @@
 use ash::vk::{API_VERSION_1_3, ApplicationInfo, InstanceCreateInfo};
 use ash::{Entry, vk};
-use winit::raw_window_handle::HasDisplayHandle;
-use winit::window::Window;
+use raw_window_handle::RawDisplayHandle;
 
 pub struct Instance {
     pub handle: ash::Instance,
 }
 impl Instance {
-    pub fn new(window: &Window, entry: &Entry) -> Instance {
+    pub fn new(raw_display_handle: RawDisplayHandle, entry: &Entry) -> Instance {
         let application_info = ApplicationInfo::default().api_version(API_VERSION_1_3);
 
         let create_flags = if cfg!(any(target_os = "macos", target_os = "ios")) {
@@ -16,17 +15,12 @@ impl Instance {
             vk::InstanceCreateFlags::default()
         };
 
-        let display_handle = window
-            .display_handle()
-            .expect("Can't get raw display handle")
-            .as_raw();
-
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         let mut extension_names = ash_window::enumerate_required_extensions(display_handle)
             .unwrap()
             .to_vec();
         #[cfg(not(any(target_os = "macos", target_os = "ios")))]
-        let extension_names = ash_window::enumerate_required_extensions(display_handle)
+        let extension_names = ash_window::enumerate_required_extensions(raw_display_handle)
             .unwrap()
             .to_vec();
 
