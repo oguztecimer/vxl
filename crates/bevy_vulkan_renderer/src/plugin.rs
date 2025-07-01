@@ -8,8 +8,10 @@ use ash::vk::{
     PipelineStageFlags2, PresentInfoKHR, Rect2D, RenderingAttachmentInfo, RenderingInfo,
     SemaphoreSubmitInfo, ShaderStageFlags, SubmitInfo2, Viewport,
 };
-use bevy::ecs::entity::unique_slice::Windows;
-use bevy::prelude::{App, Commands, Entity, EventReader, IntoScheduleConfigs, NonSend, Plugin, PostUpdate, Query, Res, ResMut, Startup, Window};
+use bevy::prelude::{
+    App, Commands, Entity, EventReader, IntoScheduleConfigs, NonSend, Plugin, PostUpdate, Query,
+    ResMut, Startup, Window,
+};
 use bevy::window::WindowResized;
 use bevy::winit::WinitWindows;
 use glam::{IVec2, Vec2, vec2};
@@ -21,8 +23,7 @@ impl Plugin for BevyVulkanPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_vulkan_renderer)
             .add_systems(PostUpdate, draw_frame)
-            .add_systems(PostUpdate, handle_window_resize.before(draw_frame))
-        ;
+            .add_systems(PostUpdate, handle_window_resize.before(draw_frame));
     }
 }
 
@@ -457,7 +458,12 @@ fn handle_window_resize(
     mut renderer: ResMut<BevyVulkanRenderer>,
     mut resize_events: EventReader<WindowResized>,
 ) {
-    for e in resize_events.read(){
+    for _e in resize_events.read() {
         renderer.recreate_swap_chain();
+        renderer.descriptors.update(
+            &renderer.device.logical,
+            &renderer.swapchain,
+            &renderer.buffers,
+        );
     }
 }

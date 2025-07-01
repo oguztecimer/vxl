@@ -16,7 +16,7 @@ impl Instance {
         };
 
         #[cfg(any(target_os = "macos", target_os = "ios"))]
-        let mut extension_names = ash_window::enumerate_required_extensions(display_handle)
+        let mut extension_names = ash_window::enumerate_required_extensions(raw_display_handle)
             .unwrap()
             .to_vec();
         #[cfg(not(any(target_os = "macos", target_os = "ios")))]

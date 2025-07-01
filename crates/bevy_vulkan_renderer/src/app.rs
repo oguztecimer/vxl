@@ -102,8 +102,6 @@ impl App {
             return;
         }
         let steps = 20;
-        let current_frame = Instant::now();
-
         let scale = 5.0;
         let source = scale * 512.0;
         let uv_min = vec2(
@@ -111,7 +109,6 @@ impl App {
             1.0 - (self.renderer().swapchain.extent.height as f32 / source),
         ) / 2.0;
         let uv_max = vec2(1.0, 1.0) - uv_min;
-        //self.last_frame = Some(current_frame);
         self.renderer_mut()
             .pipelines
             .simulation_pipeline
